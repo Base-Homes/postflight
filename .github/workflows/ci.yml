@@ -1,0 +1,31 @@
+name: tests
+
+# The package's own gate. It used to ride Base's CI as a step; once extracted, nothing
+# else runs these — so this workflow IS the test suite from here on.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both ends matter. 3.11 is the floor `requires-python` claims, and claiming it
+        # without testing it is how 3.12-only syntax ships to someone on 3.11 whose
+        # first news of it is a SyntaxError. 3.14 is what the first consumer actually
+        # runs — Base's venv and its `python:3.14` Cloud Build step — so leaving it out
+        # would test every version except the one in production.
+        python-version: ['3.11', '3.12', '3.13', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      # pytest and NOTHING else. postflight advertises zero dependencies, and installing
+      # the package first would let a crept-in import resolve against whatever pip
+      # happened to pull. If the suite passes here, the promise held.
+      - run: pip install pytest
+      - run: python -m pytest tests/ -q

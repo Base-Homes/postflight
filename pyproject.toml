@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "postflight"
+version = "0.0.1"
+description = "Turn-level failure detection for tool-calling agents"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+keywords = ["llm", "agents", "observability", "evaluation", "mcp", "tool-calling"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development :: Quality Assurance",
+]
+# No dependencies, deliberately. Every detector is pure stdlib, and the one client in
+# the tree uses urllib rather than httpx so that adding postflight to a project can
+# never move a version pin. `test_postflight_isolation.py` enforces this.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["postflight"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
