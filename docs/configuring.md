@@ -80,6 +80,21 @@ nothing is not a decline) and **prose** (`"No matching orders found."` is
 indistinguishable from success without reading it). If a tool of yours only fails in
 prose, the durable fix is in the tool, not here.
 
+#### Reading a refusal
+
+A `TOOL_REFUSAL` is not automatically a bug in the tool. Most in-body declines are
+expected outcomes rather than defects, and the reason is often information the agent
+needs in order to do something sensible next.
+
+What is worth checking is whether the decline was *handled*. A refusal on the same turn
+as an `UNVERIFIED_CLAIM` is the pairing that matters: the tool said no, and the reply
+said yes, which means a user was told something untrue. A refusal that the reply reports
+honestly is the system working, and the fixture in this repository is exactly that case.
+
+The one shape worth fixing at the source is a tool swallowing a genuine failure into a
+result body, a 500 returned as `{"ok": false}`. That is an error wearing a decline's
+clothes, and it belongs in `TOOL_ERROR` where your existing alerting can see it.
+
 `refusal_exemptions` is the other direction: shapes that look like refusals and are
 not. The shipped one is `{"sent": false, "queued": true}`: a send handed off to a relay.
 Exemptions outrank `refusal_predicates`, so widening your detection cannot silently
