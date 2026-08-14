@@ -177,6 +177,12 @@ def detect_no_cache_hit(turn: Turn, cfg: Config) -> Iterator[Finding]:
     if len(gens) < 2:
         return
     largest = max(gens, key=lambda g: g.input_tokens)
+    if largest.cache_read_tokens is None:
+        # The producer reports no cache usage at all, which is not the same as reporting
+        # none. Firing here made every sufficiently large turn from such an
+        # instrumentation a false positive — confirmed against real OpenInference spans,
+        # which carry no cache attribute whatsoever.
+        return
     floor = cfg.cache_floor_for(largest.model)
     if largest.input_tokens > floor and turn.cache_read_tokens == 0:
         yield Finding(

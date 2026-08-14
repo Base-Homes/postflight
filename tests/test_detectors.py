@@ -151,12 +151,23 @@ def test_slow_turn_uses_configured_threshold():
 # --- cache ----------------------------------------------------------------------
 
 def test_no_cache_hit_on_a_big_repeat_prompt():
-    found = run(turn(gen("", input_tokens=9000), gen("done", input_tokens=9000)))
+    """Explicit zeros: the producer REPORTED no cache reads, which is a real miss."""
+    found = run(turn(gen("", input_tokens=9000, cache_read_tokens=0),
+                     gen("done", input_tokens=9000, cache_read_tokens=0)))
     assert "NO_CACHE_HIT" in codes(found)
 
 
+def test_unreported_cache_is_not_a_miss():
+    """Unknown is not zero. Some instrumentations (OpenInference, measured) emit no
+    cache attribute at all; scoring that as a miss made every large turn from them a
+    false positive."""
+    found = run(turn(gen("", input_tokens=9000), gen("done", input_tokens=9000)))
+    assert "NO_CACHE_HIT" not in codes(found)
+    assert Turn(id="x", steps=(gen("d", input_tokens=9000),)).cache_read_tokens == 0
+
+
 def test_cache_read_clears_it():
-    found = run(turn(gen("", input_tokens=9000),
+    found = run(turn(gen("", input_tokens=9000, cache_read_tokens=0),
                      gen("done", input_tokens=9000, cache_read_tokens=8000)))
     assert "NO_CACHE_HIT" not in codes(found)
 
@@ -168,14 +179,15 @@ def test_single_generation_never_flags():
 
 def test_many_small_prompts_do_not_sum_past_the_floor():
     """Caching is per call. Summing is the arithmetic that fabricates this finding."""
-    found = run(turn(*[gen("d", input_tokens=1500) for _ in range(27)]))
+    found = run(turn(*[gen("d", input_tokens=1500, cache_read_tokens=0)
+                       for _ in range(27)]))
     assert "NO_CACHE_HIT" not in codes(found)
 
 
 def test_cache_floor_is_model_aware():
     """1500 tokens is cacheable on Opus and not on Haiku."""
-    steps = (gen("", input_tokens=1500, model="claude-opus-5"),
-             gen("done", input_tokens=1500, model="claude-opus-5"))
+    steps = (gen("", input_tokens=1500, model="claude-opus-5", cache_read_tokens=0),
+             gen("done", input_tokens=1500, model="claude-opus-5", cache_read_tokens=0))
     assert "NO_CACHE_HIT" in codes(run(turn(*steps)))
 
 

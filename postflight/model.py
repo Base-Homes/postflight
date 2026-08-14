@@ -37,8 +37,11 @@ class Generation:
     text: str = ""
     input_tokens: int = 0
     output_tokens: int = 0
-    cache_read_tokens: int = 0
-    cache_write_tokens: int = 0
+    # None means the producer does not REPORT cache usage; 0 means it reported none.
+    # Collapsing those two made every trace from an instrumentation that omits the
+    # field look like a cache miss — see the NO_CACHE_HIT detector.
+    cache_read_tokens: int | None = None
+    cache_write_tokens: int | None = None
     started_at: datetime | None = None
     ended_at: datetime | None = None
 
@@ -51,7 +54,8 @@ class Generation:
         prompt sits outside it. Summing only `input + output` understates a cached
         agent by an order of magnitude, which is the direction that makes it look free.
         """
-        return self.input_tokens + self.cache_read_tokens + self.cache_write_tokens
+        return (self.input_tokens + (self.cache_read_tokens or 0)
+                + (self.cache_write_tokens or 0))
 
     @property
     def total_tokens(self) -> int:
@@ -144,11 +148,17 @@ class Turn:
 
     @property
     def cache_read_tokens(self) -> int:
-        return sum(g.cache_read_tokens for g in self.generations)
+        """Cache reads across the turn, counting UNREPORTED as zero.
+
+        Fine for a total; useless for asking "did this turn miss the cache", because
+        an unreported zero and a real zero add up the same. A detector wanting that
+        distinction must read  per call.
+        """
+        return sum(g.cache_read_tokens or 0 for g in self.generations)
 
     @property
     def cache_write_tokens(self) -> int:
-        return sum(g.cache_write_tokens for g in self.generations)
+        return sum(g.cache_write_tokens or 0 for g in self.generations)
 
 
 class Severity(str, Enum):

@@ -112,11 +112,21 @@ detector that cries wolf on the healthy case is how the real rows get ignored. U
 Alpha, and private while it earns its keep. The taxonomy is the product, so detector
 codes are treated as a breaking change to rename; thresholds and vocabulary are not.
 
-**Adapters: Langfuse today.** The detectors never see a vendor — they read
-`postflight.model.Turn`, so a second adapter is a function from your trace format to an
-ordered list of `Generation` and `ToolCall` steps. That is the honest state of it: the
-model has so far only been fed one trace shape, and until something scores a trace it
-did not grow up on, "portable" is a design intention rather than a demonstrated fact.
+**Adapters: Langfuse and OpenTelemetry / OpenInference.** The detectors never see a
+vendor — they read `postflight.model.Turn`, so an adapter is just a function from your
+trace format to an ordered list of `Generation` and `ToolCall` steps.
+
+Portability is now demonstrated rather than asserted: the OTel adapter was written
+against real spans from an Anthropic agent instrumented with OpenInference — a producer
+that shares nothing with the first one — and the shipped defaults caught a `TOOL_REFUSAL`
+in it while correctly declining to flag the model's own negated sentence. `Turn` needed
+no change to accept it.
+
+It did surface one real modelling bug, which is the point of trying: OpenInference emits
+no cache attribute at all, and scoring that absence as `0` made every large-prompt turn a
+false `NO_CACHE_HIT`. `Generation.cache_read_tokens` is now `int | None` — **unknown is
+not zero** — and an adapter that cannot report cache usage says so. Worth knowing if you
+write the third adapter.
 
 Issues and PRs welcome; no response SLA.
 
