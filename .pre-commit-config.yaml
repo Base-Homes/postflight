@@ -6,4 +6,9 @@ repos:
     hooks:
       - id: ruff-check
         args: [--fix]
+        # Markdown too: ruff formats fenced python, so a README example drifts from the
+        # house style otherwise — and the CI job runs repo-wide, so scoping the hook
+        # narrower is how local and CI end up disagreeing.
+        types_or: [python, pyi, markdown]
       - id: ruff-format
+        types_or: [python, pyi, markdown]

@@ -85,9 +85,12 @@ whatever you have to an ordered sequence of steps:
 from postflight.model import Generation, ToolCall, Turn
 
 Turn(
-    id="…",                 # your trace/turn identifier
-    kind="chat.turn",       # the SURFACE — which agent, which channel
-    steps=(                 # ORDERED. the order is the signal
+    # your trace/turn identifier
+    id="…",
+    # the SURFACE — which agent, which channel
+    kind="chat.turn",
+    # ORDERED: the sequence is the signal
+    steps=(
         Generation(text="", input_tokens=900, model="…"),
         ToolCall(name="search", result={"count": 0}),
         Generation(text="I couldn't find it.", input_tokens=1200, model="…"),
@@ -157,9 +160,11 @@ Anything else reads as success. If your tools signal failure some other way — 
 report will look clean**. Add your convention:
 
 ```python
-Config(refusal_predicates=(
-    lambda r: isinstance(r, dict) and r.get("status") in {"failed", "declined"},
-))
+Config(
+    refusal_predicates=(
+        lambda r: isinstance(r, dict) and r.get("status") in {"failed", "declined"},
+    )
+)
 ```
 
 There is no default for that, deliberately. `{"status": "failed"}` returned by a
@@ -197,7 +202,7 @@ So check rather than assume:
 from postflight import coverage
 
 for row in coverage(turns, cfg):
-    print(row)     # e.g. "NO_CACHE_HIT: INERT — no generation reports cache usage"
+    print(row)  # e.g. "NO_CACHE_HIT: INERT — no generation reports cache usage"
 ```
 
 It reports structural inertness only — an input absent from every turn. It will not tell
@@ -216,14 +221,17 @@ pairs a regex against the tools that would make the claim true:
 from postflight import ClaimRule, Config
 import re
 
-Config(claim_rules=(
-    ClaimRule(
-        name="ticket_filed",
-        pattern=re.compile(r"\b(?:filed|opened|created)\b[^.\n]{0,40}\bticket\b",
-                           re.IGNORECASE),
-        satisfied_by=frozenset({"create_ticket", "escalate_to_support"}),
-    ),
-))
+Config(
+    claim_rules=(
+        ClaimRule(
+            name="ticket_filed",
+            pattern=re.compile(
+                r"\b(?:filed|opened|created)\b[^.\n]{0,40}\bticket\b", re.IGNORECASE
+            ),
+            satisfied_by=frozenset({"create_ticket", "escalate_to_support"}),
+        ),
+    )
+)
 ```
 
 Matching reads the clause the match sits in, and skips it on two conditions:
