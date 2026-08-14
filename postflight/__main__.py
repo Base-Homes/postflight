@@ -42,7 +42,18 @@ def _load(args: argparse.Namespace) -> list[Turn]:
     if args.otel:
         from .adapters.otel import turns_from_jsonl
 
-        return turns_from_jsonl(args.otel)
+        # A typo'd path and a file that is not JSONL are both ordinary mistakes, and a
+        # traceback answers neither of them. SystemExit prints the message and sets a
+        # non-zero status without pretending the tool crashed.
+        try:
+            return turns_from_jsonl(args.otel)
+        except OSError as exc:
+            raise SystemExit(f"cannot read {args.otel}: {exc.strerror}") from exc
+        except json.JSONDecodeError as exc:
+            raise SystemExit(
+                f"{args.otel} is not newline-delimited JSON: {exc} "
+                "(expected one exported span object per line)"
+            ) from exc
 
     from .adapters.langfuse import LangfuseAdapter, LangfuseClient
 
