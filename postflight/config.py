@@ -161,6 +161,17 @@ class Config:
     error_text_prefixes: tuple[str, ...] = ("Error executing tool",)
     # Predicates that rescue a result the flag scan would otherwise call a refusal.
     refusal_exemptions: tuple[Callable[[Any], bool], ...] = (_queued_not_sent,)
+    # The other direction: extra ways a result can BE a refusal, for tools that do not
+    # use boolean flags. Empty by default on purpose — a status-style convention cannot
+    # be guessed safely, because `{"status": "failed"}` from a `get_job_status` tool
+    # describes the JOB, not the call, and scoring it as a refusal is the cry-wolf
+    # failure this package exists to avoid. You know which of your tools report on
+    # themselves; postflight does not.
+    #
+    #     Config(refusal_predicates=(
+    #         lambda r: isinstance(r, dict) and r.get("status") in {"failed", "declined"},
+    #     ))
+    refusal_predicates: tuple[Callable[[Any], bool], ...] = ()
 
     # --- honesty ----------------------------------------------------------------
     claim_rules: tuple[ClaimRule, ...] = DEFAULT_CLAIM_RULES

@@ -19,7 +19,7 @@ platform's evaluator runtime gives you today.
 |---|---|---|
 | `UNVERIFIED_CLAIM` | The reply asserts a write that no successful tool backs up. | The only one a user experiences directly as a lie. They were told something happened that did not happen. |
 | `TOOL_ERROR` | A tool raised; the framework wrapped it. | The visible half of tool failure. Usually already in your dashboards. |
-| `TOOL_REFUSAL` | A tool ran fine and **declined in its own result body** — `{"updated": false}` — with no error flag. | The dangerous half. Every guard that asks "did the tool run" is satisfied, so a false confirmation sails through. |
+| `TOOL_REFUSAL` | A tool ran fine and **declined in its own result body**, in a shape you've told postflight about (by default, a success flag set to `false`). | The dangerous half. Every guard that asks "did the tool run" is satisfied, so a false confirmation sails through. **Convention-dependent — see below.** |
 | `REPEATED_TOOL` | The same tool called 3+ times in one turn. | The model is searching for an argument it was never given. A context gap, not a model failure — fix the prompt. |
 | `TOOL_STORM` | 8+ tool calls in one turn. | Same cause, worse. Cost and latency both. |
 | `EMPTY_REPLY` | The turn produced no text where somebody was owed one. | On a 1:1 channel this is the "it just didn't respond" bug. Reports at INFO until you set `conversational_kinds` — unconfigured, postflight can't tell a silent channel from a batch job that returns a document. |
@@ -139,6 +139,43 @@ Config(
     quiet_kinds=frozenset({"group.turn"}),
 )
 ```
+
+### What `TOOL_REFUSAL` can and cannot see
+
+This detector does **not** assume your tools return `{"updated": false}`. It assumes you
+tell it how your tools say no. Out of the box it recognises four shapes:
+
+| shape | verdict |
+|---|---|
+| the call raised — `is_error` set by the adapter | `TOOL_ERROR` |
+| the framework's error string (`Error executing tool …`) | `TOOL_ERROR` |
+| a truthy `error` key in the result | `TOOL_ERROR` |
+| a key from `success_flags` set to `false` | `TOOL_REFUSAL` |
+
+Anything else reads as success. If your tools signal failure some other way — a
+`status` field, an enum, an HTTP-ish code — **`TOOL_REFUSAL` will never fire and your
+report will look clean**. Add your convention:
+
+```python
+Config(refusal_predicates=(
+    lambda r: isinstance(r, dict) and r.get("status") in {"failed", "declined"},
+))
+```
+
+There is no default for that, deliberately. `{"status": "failed"}` returned by a
+`get_job_status` tool describes the *job*, not the call — guessing would make every
+healthy status read into a refusal, which is precisely the cry-wolf failure this package
+exists to avoid. You know which of your tools report on themselves; postflight doesn't.
+
+Two things it will never infer, by design: an **empty result set** (a search that found
+nothing is not a decline) and **prose** (`"No matching orders found."` is
+indistinguishable from success without reading it). If a tool of yours only fails in
+prose, the durable fix is in the tool, not here.
+
+`refusal_exemptions` is the other direction — shapes that look like refusals and are
+not. The shipped one is `{"sent": false, "queued": true}`: a send handed off to a relay.
+Exemptions outrank `refusal_predicates`, so widening your detection cannot silently
+re-flag a path you already excused.
 
 The one worth real attention is `claim_rules`, which drives `UNVERIFIED_CLAIM`. A rule
 pairs a regex against the tools that would make the claim true:

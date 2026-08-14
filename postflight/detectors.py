@@ -23,10 +23,17 @@ Detector = Callable[[Turn, Config], Iterable[Finding]]
 def tool_outcome(call: ToolCall, cfg: Config) -> Outcome:
     """Did this call do the thing?
 
-    Three answers, not two. A tool that RAISED and a tool that ran fine and DECLINED
-    are different failures with different fixes, and the second is the dangerous one:
-    every guard keyed on "did the tool run" is satisfied by a decline, which is how a
-    false confirmation reaches a user.
+    Three answers, not two. A tool that RAISED and a tool that ran fine and DECLINED are
+    different failures with different fixes, and the second is the dangerous one: every
+    guard keyed on "did the tool run" is satisfied by a decline, which is how a false
+    confirmation reaches a user.
+
+    REFUSED is only detectable where the tool SAYS SO in a shape config knows about —
+    a boolean success flag by default, plus whatever `refusal_predicates` adds. A tool
+    that signals failure only in prose is indistinguishable from one that succeeded, and
+    postflight will call it OK. That is a limit of the data, not a bug to tune around:
+    inferring refusal from an empty result would flag every search that legitimately
+    found nothing.
     """
     if call.is_error:
         return Outcome.ERRORED
@@ -35,8 +42,12 @@ def tool_outcome(call: ToolCall, cfg: Config) -> Outcome:
         return Outcome.ERRORED
     if isinstance(result, dict) and result.get("error"):
         return Outcome.ERRORED
+    # Exemptions run first and win outright: a shape declared healthy stays healthy
+    # even if a later rule would flag it.
     if any(exempt(result) for exempt in cfg.refusal_exemptions):
         return Outcome.OK
+    if any(is_refusal(result) for is_refusal in cfg.refusal_predicates):
+        return Outcome.REFUSED
     if isinstance(result, dict) and any(result.get(k) is False for k in cfg.success_flags):
         return Outcome.REFUSED
     return Outcome.OK

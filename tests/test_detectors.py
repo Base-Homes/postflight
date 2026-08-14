@@ -257,3 +257,40 @@ def test_reply_is_the_last_generation_not_a_join():
 def test_duration_falls_back_to_step_stamps():
     step = Generation(text="x", started_at=T0, ended_at=T0 + timedelta(seconds=12))
     assert Turn(id="t", steps=(step,)).duration_s == 12.0
+
+
+# --- what TOOL_REFUSAL can and cannot see ---------------------------------------
+
+@pytest.mark.parametrize("result", [
+    {"status": "failed"},          # a status-style convention
+    {"result": "declined"},        # an enum-style one
+    "No matching orders found.",   # prose
+    {"count": 0, "results": []},   # an empty result set
+    [],
+    {},
+])
+def test_shapes_the_defaults_deliberately_do_not_call_refusals(result):
+    """The default vocabulary is boolean success flags. Everything else reads as OK.
+
+    Some of these SHOULD stay OK forever: an empty result set is a search that found
+    nothing, not a tool that declined, and inferring otherwise would flag every honest
+    miss. The status/enum shapes are different — they are real refusals postflight
+    cannot recognise without being told, which is what `refusal_predicates` is for.
+    """
+    assert tool_outcome(tool("t", result=result), Config()) is Outcome.OK
+
+
+def test_refusal_predicates_add_a_convention():
+    cfg = Config(refusal_predicates=(
+        lambda r: isinstance(r, dict) and r.get("status") in {"failed", "declined"},
+    ))
+    assert tool_outcome(tool("t", result={"status": "failed"}), cfg) is Outcome.REFUSED
+    assert tool_outcome(tool("t", result={"status": "ok"}), cfg) is Outcome.OK
+
+
+def test_an_exemption_outranks_a_refusal_predicate():
+    """Exemptions declare a shape healthy; a broad custom predicate must not override
+    that, or adding one silently re-flags the paths you already excused."""
+    cfg = Config(refusal_predicates=(lambda r: isinstance(r, dict) and "sent" in r,))
+    queued = tool("send", result={"sent": False, "queued": True})
+    assert tool_outcome(queued, cfg) is Outcome.OK
