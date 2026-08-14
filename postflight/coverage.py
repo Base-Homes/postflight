@@ -38,7 +38,7 @@ class Coverage:
 
     def __str__(self) -> str:
         state = "MISLEADING" if self.misleading else ("live" if self.live else "INERT")
-        return f"{self.code}: {state} — {self.reason}"
+        return f"{self.code}: {state} - {self.reason}"
 
 
 def coverage(turns: Iterable[Turn], cfg: Config | None = None) -> list[Coverage]:
@@ -77,7 +77,7 @@ def coverage(turns: Iterable[Turn], cfg: Config | None = None) -> list[Coverage]
                 "UNVERIFIED_CLAIM",
                 True,
                 "no tool name in this data satisfies any claim rule (saw "
-                f"{len(seen_tools)} distinct tools) — a genuine action will read as an "
+                f"{len(seen_tools)} distinct tools). A genuine action will read as an "
                 "unbacked claim. Check satisfied_by / satisfied_by_prefix against your "
                 "tool names",
                 misleading=True,
@@ -161,7 +161,7 @@ def coverage(turns: Iterable[Turn], cfg: Config | None = None) -> list[Coverage]
             bool(cfg.quiet_kinds),
             "quiet_kinds configured"
             if cfg.quiet_kinds
-            else "no quiet_kinds configured — nothing is silent by design",
+            else "no quiet_kinds configured, so nothing is silent by design",
         )
     )
 
@@ -190,8 +190,7 @@ def coverage(turns: Iterable[Turn], cfg: Config | None = None) -> list[Coverage]
             Coverage(
                 "NO_CACHE_HIT",
                 False,
-                "no generation reports cache usage — unknown is not "
-                "treated as zero, so this cannot fire",
+                "no generation reports cache usage, and unknown is not treated as zero",
             )
         )
     else:

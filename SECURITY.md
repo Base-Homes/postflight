@@ -12,7 +12,7 @@ Report privately via
 Please do not open a public issue.
 
 Expect an acknowledgement within 7 days. This is a small project with no dedicated
-security staffing — that window is what can actually be met, not an aspiration.
+security staffing, so that window is what can actually be met rather than an aspiration.
 
 ## Scope
 
@@ -24,5 +24,5 @@ nothing from the traces it reads. The realistic surface is therefore:
   or enormous attribute sets).
 - `LangfuseClient` and the credentials a caller hands it.
 
-Findings can quote trace content — including reply text — in `Finding.detail`. If your
+Findings can quote trace content, including reply text, in `Finding.detail`. If your
 traces carry personal data, treat postflight's output as carrying it too.

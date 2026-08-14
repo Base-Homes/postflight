@@ -363,3 +363,22 @@ def test_an_exemption_outranks_a_refusal_predicate():
     cfg = Config(refusal_predicates=(lambda r: isinstance(r, dict) and "sent" in r,))
     queued = tool("send", result={"sent": False, "queued": True})
     assert tool_outcome(queued, cfg) is Outcome.OK
+
+
+def test_the_refusal_plus_claim_pairing_the_docs_point_at():
+    """docs/configuring.md tells a reader that a TOOL_REFUSAL on the same turn as an
+    UNVERIFIED_CLAIM is the combination worth acting on: the tool said no and the reply
+    said yes. That is only useful advice if both actually surface together."""
+    both = turn(
+        tool("send_email", result={"sent": False, "reason": "channel down"}),
+        gen("I've sent them a message."),
+    )
+    assert {"TOOL_REFUSAL", "UNVERIFIED_CLAIM"} <= codes(run(both))
+
+    # And the honest version of the same turn: tool declined, reply said so. One
+    # finding, not two, because nobody was misled.
+    honest = turn(
+        tool("send_email", result={"sent": False, "reason": "channel down"}),
+        gen("I wasn't able to send them a message."),
+    )
+    assert codes(run(honest)) == {"TOOL_REFUSAL"}
