@@ -104,10 +104,9 @@ class LangfuseAdapter:
             text=text_of(row.get("output")),
             input_tokens=pick("input", "input_tokens"),
             output_tokens=pick("output", "output_tokens"),
-            # Present-but-zero and absent are DIFFERENT: measured over 906 production
-            # generations, 833 carried the key (798 of them zero) and 73 omitted it.
-            # Mapping the missing 73 to zero told the cache detector they missed a cache
-            # they were never observed to have.
+            # Present-but-zero and absent are DIFFERENT, and this producer emits both.
+            # Mapping a missing key to zero asserts a cache miss on evidence that does
+            # not exist.
             cache_read_tokens=_opt_int(details, "cache_read_input_tokens"),
             cache_write_tokens=_opt_int(details, "cache_creation_input_tokens"),
             started_at=_ts(row.get("startTime")),

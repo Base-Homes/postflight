@@ -39,7 +39,7 @@ dependencies = []
 Homepage = "https://github.com/Base-Homes/postflight"
 Repository = "https://github.com/Base-Homes/postflight"
 Issues = "https://github.com/Base-Homes/postflight/issues"
-Changelog = "https://github.com/Base-Homes/postflight/blob/main/CHANGELOG.md"
+Changelog = "https://github.com/Base-Homes/postflight/releases"
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]

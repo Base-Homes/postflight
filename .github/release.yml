@@ -1,0 +1,19 @@
+# Shapes the notes GitHub generates for a release. Categories are matched by PR label,
+# so labelling a PR is what writes the changelog — there is no file to keep in sync and
+# no step to forget at tag time.
+changelog:
+  exclude:
+    labels: [skip-changelog]
+  categories:
+    - title: Breaking changes
+      labels: [breaking]
+    - title: Added
+      labels: [feature, enhancement]
+    - title: Fixed
+      labels: [bug]
+    - title: Adapters
+      labels: [adapter]
+    - title: Documentation
+      labels: [documentation]
+    - title: Other
+      labels: ["*"]

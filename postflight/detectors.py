@@ -4,10 +4,10 @@ Each detector is a pure `(Turn, Config) -> Iterable[Finding]`. No I/O, no vendor
 domain. Adding one means appending to `DETECTORS`; the code string it emits is the
 stable identifier callers filter and chart on, so treat a rename as a breaking change.
 
-The nine below are not generic observability metrics. Each is a failure a production
-tool-calling agent actually ships, and the comments record the false positive that
-shaped it — because the tuning is most of the work and a detector that cries wolf on
-the healthy case is how the real rows get ignored.
+These are not generic observability metrics. Each names a way a tool-calling agent
+fails that its own logs do not make obvious. Where a rule looks oddly narrow, the
+comment says which healthy case it must not fire on: the narrowing is most of the work,
+and a detector that cries wolf is one people learn to ignore.
 """
 from __future__ import annotations
 
@@ -198,8 +198,8 @@ def detect_empty_reply(turn: Turn, cfg: Config) -> Iterator[Finding]:
     """A turn that produced no text where somebody was owed one.
 
     On a `quiet_kind` — a surface fronted by a relevance gate — silence is the product
-    working, and flagging it buried the one class this detector exists for (55 of 56
-    hits in one real window). A quiet kind is only suspicious when the gate PASSED it
+    working, and flagging it drowns the one class this detector exists for, because
+    most traffic there is dropped. A quiet kind is only suspicious when the gate PASSED it
     and the agent did work: tools ran, or the loop went more than one generation, and
     then the room got nothing. Otherwise it reports as GATE_FILTERED at INFO, so the
     count stays visible for a gate that has started swallowing real traffic.
@@ -259,7 +259,7 @@ def faults(findings: Iterable[Finding]) -> list[Finding]:
     """Findings that are something to FIX.
 
     Reporting must cut on this rather than on the raw finding count, or a turn counted
-    as flagged for behaving correctly cries as loudly as a real one. On one real window
-    this was the difference between a headline of 75 and one of 26.
+    as flagged for behaving correctly cries as loudly as a real one — and on a surface
+    that is silent by design, those dominate the count.
     """
     return [f for f in findings if f.severity is Severity.FAULT]

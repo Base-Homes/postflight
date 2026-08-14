@@ -1,7 +1,7 @@
-"""Detector behaviour, including the false positives that shaped each one.
+"""Detector behaviour, in both directions.
 
-Every "does NOT fire" case here is a real report that cried wolf before the rule was
-narrowed. They are the half worth keeping green.
+Every "does NOT fire" case pins a healthy pattern the rule must stay clear of. Those are
+the half worth keeping green: a detector is easy to make fire and hard to keep quiet.
 """
 import re
 from datetime import datetime, timedelta, timezone
@@ -158,9 +158,8 @@ def test_no_cache_hit_on_a_big_repeat_prompt():
 
 
 def test_unreported_cache_is_not_a_miss():
-    """Unknown is not zero. Some instrumentations (OpenInference, measured) emit no
-    cache attribute at all; scoring that as a miss made every large turn from them a
-    false positive."""
+    """Unknown is not zero. Some instrumentations emit no cache attribute at all, and
+    scoring that as a miss makes every large turn from them a false positive."""
     found = run(turn(gen("", input_tokens=9000), gen("done", input_tokens=9000)))
     assert "NO_CACHE_HIT" not in codes(found)
     assert Turn(id="x", steps=(gen("d", input_tokens=9000),)).cache_read_tokens == 0
@@ -243,8 +242,8 @@ def test_non_conversational_kind_owes_nothing():
 # --- model ----------------------------------------------------------------------
 
 def test_total_tokens_counts_cached_input():
-    """`input_tokens` is the UNCACHED prompt alone. Summing input+output alone reported
-    250 for a turn that really consumed 18,250 — the direction that hides spend."""
+    """`input_tokens` is the UNCACHED prompt alone, so input+output omits everything the
+    cache served — the direction that hides spend rather than exaggerating it."""
     g = gen("hi", input_tokens=200, output_tokens=50, cache_read_tokens=18_000)
     assert g.input_tokens_total == 18_200
     assert Turn(id="x", steps=(g,)).total_tokens == 18_250

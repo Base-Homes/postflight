@@ -38,7 +38,10 @@ your `Config`, not in here. Say so in the PR if you think it's the exception.
 ## Before you open a PR
 
 - `python -m pytest tests/ -q` passes
-- New behaviour has a test; new comments explain *why*, not *what*
-- `CHANGELOG.md` under `## [Unreleased]` if the change is user-visible
+- New behaviour has a test
+- A comment explains *why the code is the way it is*, where that is not obvious. Not what
+  it does, and not the story of how it was found
+- The PR title reads as a release note — it becomes one verbatim, since release notes are
+  generated from merged PRs at tag time
 
 Issues and PRs are welcome. There is no response SLA.

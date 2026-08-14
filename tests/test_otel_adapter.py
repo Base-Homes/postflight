@@ -66,7 +66,7 @@ def test_last_output_message_wins():
 
 
 def test_in_body_refusal_is_caught_with_DEFAULT_config(turn_):
-    """No Base tuning, no domain vocabulary — the shipped defaults on a foreign trace."""
+    """No tuning, no domain vocabulary — the shipped defaults on a foreign trace."""
     found = run(turn_, Config())
     assert "TOOL_REFUSAL" in codes(found)
     refusal = next(f for f in found if f.code == "TOOL_REFUSAL")
@@ -79,9 +79,8 @@ def test_the_models_own_negated_sentence_is_not_a_claim(turn_):
 
 
 def test_unreported_cache_does_not_fabricate_a_miss(turn_):
-    """OpenInference emits no cache attribute at all. Treating that as zero made every
-    sufficiently large turn from this instrumentation a NO_CACHE_HIT — confirmed against
-    a real 4,852-token prompt before this was fixed."""
+    """OpenInference emits no cache attribute at all. Treating that as zero makes every
+    sufficiently large turn from this instrumentation a NO_CACHE_HIT."""
     assert all(g.cache_read_tokens is None for g in turn_.generations)
     assert "NO_CACHE_HIT" not in codes(run(turn_, Config()))
 

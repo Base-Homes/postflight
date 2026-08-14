@@ -70,21 +70,11 @@ notification"* — an honest report of a failure, not a claim — so `UNVERIFIED
 stayed quiet. Had it said "I've let the customer know", that same turn would have
 produced the finding you actually want to be paged about.
 
-Across a day of one production deployment (114 turns), the shape looks like this:
-
-| pattern | turns | |
-|---|---|---|
-| `SLOW_TURN` | 22 | |
-| `GATE_FILTERED` | 19 | *not a fault — silence by design* |
-| `NO_CACHE_HIT` | 7 | |
-| `TOOL_ERROR` | 3 | |
-| `TOOL_STORM` | 2 | |
-| `TOOL_REFUSAL` | 1 | |
-| `REPEATED_TOOL` | 1 | |
-
-The long tail is the point. `TOOL_REFUSAL` fires once in a day and is worth more than the
-twenty-two slow turns, because a slow turn is visible to whoever waited and a silent
-in-body decline is not.
+Expect the counts to be lopsided, and expect that to be the useful part. `SLOW_TURN`
+and `GATE_FILTERED` dominate any real window — one is already visible to whoever waited,
+and the other is a surface behaving correctly. The rare rows carry the weight: a single
+`TOOL_REFUSAL` or `UNVERIFIED_CLAIM` is a user who was told something untrue, and nothing
+else in your stack is going to raise it. Sort by severity, not by count.
 
 ## Writing an adapter
 
@@ -198,9 +188,14 @@ Alpha. The taxonomy is the product: **detector codes are the public interface**,
 renaming one is a breaking change. Thresholds, default vocabularies and added detectors
 are not.
 
-Versioning follows SemVer with the 0.x convention the spec leaves undefined made
-explicit — while the major is 0, a **minor** bump may break the API and a **patch** may
-not. See [CHANGELOG.md](CHANGELOG.md).
+Versioning follows SemVer, with the 0.x convention the spec leaves undefined made
+explicit: while the major is 0, a **minor** bump may break the API and a **patch** may
+not.
+
+Release notes live on the
+[Releases page](https://github.com/Base-Homes/postflight/releases), generated from the
+merged PRs for each tag — one place, tied to the artifact it describes, rather than a
+file that has to be remembered separately.
 
 **Adapters: Langfuse and OpenTelemetry / OpenInference.** The detectors never see a
 vendor — they read `postflight.model.Turn`, so an adapter is just a function from your

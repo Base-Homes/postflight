@@ -18,11 +18,10 @@ rather than a flag on that one:
     refusal check parses it here and hands `tool_outcome` the same shape it gets from
     every other adapter.
 
-Cache tokens map to **None, not 0** — OpenInference emitted no cache_read/cache_write
-attribute at all in the traces this was built against. That absence is real, not a
-mapping gap, and the distinction is load-bearing: scored as zero, every turn here with a
-prompt over the model's cacheable floor became a NO_CACHE_HIT. Confirmed against a real
-4,852-token prompt, which is what put `int | None` on `Generation`.
+Cache tokens map to **None, not 0**: OpenInference does not emit a cache attribute at
+all. The absence is real rather than a mapping gap, and the distinction is load-bearing
+— scored as zero, any turn whose prompt exceeds the model's cacheable floor reads as a
+cache miss.
 """
 from __future__ import annotations
 
@@ -58,8 +57,8 @@ def _opt_int(attrs: dict[str, Any], *keys: str) -> int | None:
     """The reported number, or None when this producer does not report it at all.
 
     Distinct from `_int`, which floors a missing key to 0. For cache counters that
-    difference IS the signal: OpenInference emits no cache attribute whatsoever, and
-    calling that zero told the detector every large turn had missed a cache.
+    difference IS the signal: OpenInference emits no cache attribute at all, and calling
+    that zero asserts a miss the trace gives no evidence for.
     """
     for key in keys:
         if attrs.get(key) not in (None, ""):

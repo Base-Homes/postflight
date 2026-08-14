@@ -1,7 +1,6 @@
 name: tests
 
-# The package's own gate. It used to ride Base's CI as a step; once extracted, nothing
-# else runs these — so this workflow IS the test suite from here on.
+# The whole test suite. Nothing else runs it.
 on:
   push:
     branches: [main]
@@ -18,10 +17,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Both ends matter. 3.11 is the floor `requires-python` claims, and claiming it
-        # without testing it is how 3.12-only syntax ships to someone on 3.11 whose
-        # first news of it is a SyntaxError. 3.14 is what the first consumer actually
-        # runs, so leaving it out would test every version except the one in production.
+        # Every version `requires-python` and the classifiers claim, both ends included.
+        # Claiming a floor without testing it is how 3.12-only syntax reaches someone on
+        # 3.11 whose first news of it is a SyntaxError; skipping the newest is how the
+        # version most people are actually on goes unexercised.
         python-version: ['3.11', '3.12', '3.13', '3.14']
     steps:
       # Actions are pinned to a full-length commit SHA — the only way to consume one

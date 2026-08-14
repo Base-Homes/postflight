@@ -134,11 +134,10 @@ DEFAULT_CACHE_FLOORS: dict[str, int] = {
 def _queued_not_sent(result: Any) -> bool:
     """A handoff to a queue is not a refusal.
 
-    `{"sent": false, "queued": true}` is the shape of a sender that legitimately cannot
-    deliver inline and has handed the message to a relay. Scoring it as a failure put a
-    healthy path at an 86% failure rate in one real report — and a detector that cries
-    wolf on the working case is how the real ones get ignored. Whether the queue
-    actually DRAINS is a real question, but not one a trace can answer.
+    `{"sent": false, "queued": true}` is a sender that cannot deliver inline and has
+    handed the message to a relay. The queue working is not a refusal, and a detector
+    that fires on the healthy path is one people learn to ignore. Whether the queue
+    actually DRAINS is a fair question, but not one a trace can answer.
     """
     return (isinstance(result, dict)
             and bool(result.get("queued"))
