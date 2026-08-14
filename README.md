@@ -12,6 +12,14 @@ that span a whole turn: a tool that declined three steps before the reply contra
 it, the same read issued eight times, a cache that never warmed. It calls no model and
 has no dependencies.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/turn-scope-dark.svg">
+  <img alt="One turn of four steps: a generation that plans, a search tool, a notification tool returning {&quot;sent&quot;: false}, and a reply saying &quot;I've let them know.&quot; A bracket labelled UNVERIFIED_CLAIM spans the last two. Below, each step is scored on its own and every one passes." src="docs/img/turn-scope-light.svg">
+</picture>
+
+The failure is a relationship between steps. Scored one at a time, which is what an
+observation-scoped evaluator does, every step here passes.
+
 ## The taxonomy
 
 | Code | What it means | Why it matters |
