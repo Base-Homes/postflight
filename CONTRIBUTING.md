@@ -45,3 +45,20 @@ your `Config`, not in here. Say so in the PR if you think it's the exception.
   generated from merged PRs at tag time
 
 Issues and PRs are welcome. There is no response SLA.
+
+## Releasing
+
+`main` requires a pull request and green checks; direct pushes are blocked for everyone
+without an admin bypass.
+
+1. Merge everything you want in the release, with PR titles that read as release notes —
+   they become the notes verbatim, categorised by label via `.github/release.yml`.
+2. Bump `version` in `pyproject.toml` and `__version__` in `postflight/__init__.py`
+   (a test fails if they disagree), via a PR like any other change.
+3. Tag it: `git tag v0.1.0 && git push origin v0.1.0`. A tag alone publishes nothing.
+4. Create the GitHub Release for that tag with generated notes. **Publishing the Release
+   is what triggers the PyPI upload** — a tag is easy to push by accident and impossible
+   to retract once it has reached PyPI, so the deliberate act is the gate.
+
+The workflow builds, checks the metadata, publishes via Trusted Publishing (no API token
+exists), and attaches the artifacts back to the Release.

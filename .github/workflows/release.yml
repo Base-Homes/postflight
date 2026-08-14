@@ -1,11 +1,16 @@
 name: Release
 
-# Tag push publishes. The human gate is the `pypi` environment below, which pauses the
-# run BEFORE the OIDC token is minted — so the approval exists regardless of what
-# triggered the workflow, and a tag pushed by accident cannot reach PyPI unattended.
+# Publishing a GitHub Release is the gate. Not a tag push: a tag is cheap to create by
+# accident and impossible to take back once it has reached PyPI, whereas a Release is a
+# deliberate act with the notes in front of you.
+#
+# The `pypi` environment below is the second gate, and the stronger one — it pauses the
+# run BEFORE the OIDC token is minted. Environment protection rules are unavailable on a
+# private repo under this plan, so it currently holds none; add a required reviewer once
+# the repo is public and this becomes belt-and-braces.
 on:
-  push:
-    tags: ['v*']
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -55,12 +60,12 @@ jobs:
       # sigstore signing job would be duplicative.
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
 
-  # Its own job so the publish job keeps `id-token: write` as its ONLY permission. This
-  # one needs `contents: write` to create the release, and has no business holding the
-  # publishing identity while it does.
-  github-release:
+  # Attaching the built artifacts to the Release that triggered this. Its own job so the
+  # publish job keeps `id-token: write` as its ONLY permission — `contents: write` has no
+  # business sitting alongside the publishing identity.
+  attach-artifacts:
     needs: [publish]
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -69,13 +74,7 @@ jobs:
         with:
           name: dist
           path: dist/
-      # --generate-notes builds the body from merged PRs, categorised by .github/release.yml.
-      # Release notes are therefore a side effect of labelling PRs rather than a file
-      # anyone has to remember to update.
       - env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "${GITHUB_REF_NAME}" dist/* \
-            --repo "${GITHUB_REPOSITORY}" \
-            --title "${GITHUB_REF_NAME}" \
-            --generate-notes
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" dist/* --repo "${GITHUB_REPOSITORY}" --clobber
