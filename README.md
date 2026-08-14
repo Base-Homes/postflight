@@ -1,8 +1,8 @@
 # postflight
 
 [![tests](https://github.com/Base-Homes/postflight/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Base-Homes/postflight/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/postflight)](https://pypi.org/project/postflight/)
-[![Python versions](https://img.shields.io/pypi/pyversions/postflight)](https://pypi.org/project/postflight/)
+[![PyPI](https://img.shields.io/pypi/v/postflight?cacheSeconds=300)](https://pypi.org/project/postflight/)
+[![Python versions](https://img.shields.io/pypi/pyversions/postflight?cacheSeconds=300)](https://pypi.org/project/postflight/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 ### Turn-level failure detection for tool-calling agents
