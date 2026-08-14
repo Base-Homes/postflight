@@ -59,3 +59,17 @@ def test_langfuse_without_credentials_fails_loudly(monkeypatch):
 def test_a_source_is_required():
     with pytest.raises(SystemExit):
         main([])
+
+
+def test_a_missing_file_is_a_message_not_a_traceback():
+    """A typo'd path is an ordinary mistake. Answering it with a stack trace tells the
+    user the tool crashed, which is both unhelpful and untrue."""
+    with pytest.raises(SystemExit, match="cannot read"):
+        main(["--otel", "/nonexistent/spans.jsonl"])
+
+
+def test_a_file_that_is_not_jsonl_says_so(tmp_path):
+    bad = tmp_path / "notes.txt"
+    bad.write_text("these are my notes, not spans\n")
+    with pytest.raises(SystemExit, match="not newline-delimited JSON"):
+        main(["--otel", str(bad)])
