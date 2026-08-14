@@ -52,6 +52,8 @@ your `Config`, not in here. Say so in the PR if you think it's the exception.
 - The PR title reads as a release note, because it becomes one verbatim: release notes are
   generated from merged PRs at tag time
 
+If you are working through a coding agent, point it at [AGENTS.md](AGENTS.md), which carries the constraints that are invisible from the code.
+
 Issues and PRs are welcome. There is no response SLA.
 
 <br>

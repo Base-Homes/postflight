@@ -43,9 +43,6 @@ Changelog = "https://github.com/Base-Homes/postflight/releases"
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
-# Only for regenerating docs/img/*.svg. Not needed to use or test the package, which is
-# why it is its own group rather than part of dev.
-docs = ["fonttools>=4.50"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["postflight"]
