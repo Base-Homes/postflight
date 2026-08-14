@@ -1,11 +1,13 @@
 """The portability test: a trace this package did not grow up on.
 
-The fixture is REAL output — an Anthropic tool-calling agent instrumented with
-OpenInference and exported through the OpenTelemetry SDK, captured verbatim and then
-stripped of the prompt text. Nothing about its shape was chosen here: flattened indexed
-attributes, ISO timestamps, span kinds, `output.value` as an opaque string. A detector
-that only ever met Langfuse's observation model has no business passing this by luck, so
-these assert the DETECTIONS, not just that parsing did not raise.
+The fixture is a real capture of an invented scenario: a throwaway support-desk agent
+written for this test, run for real through the Anthropic SDK with OpenInference
+instrumentation and exported by the OpenTelemetry SDK. The SCENARIO is synthetic, so it
+carries no third-party data; the SHAPE is not, and the shape is the point. Flattened
+indexed attributes, ISO timestamps, span kinds, `output.value` as an opaque string:
+none of it was chosen here. A detector that only ever met Langfuse's observation model
+has no business passing this by luck, so these assert the DETECTIONS rather than merely
+that parsing did not raise.
 
 The agent was given two deliberately unhelpful tools. `send_notification` declines in its
 own body (`{"sent": false}`) with no error status, which is the shape that satisfies every
