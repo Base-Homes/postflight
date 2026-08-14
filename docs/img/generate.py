@@ -57,7 +57,10 @@ STEPS = [
     (40, "GENERATION", "plans", False, None),
     (232, "TOOL", "search_orders", True, None),
     (424, "TOOL", '{"sent": false}', True, "note"),
-    (620, "GENERATION", "“I’ve let them know.”", False, "fault"),
+    # Typographic quotes on purpose: this is rendered display copy, not code, and
+    # Inter draws them properly. RUF001 flags them as ambiguous, which is the right
+    # default for source and the wrong one for a string that becomes a picture.
+    (620, "GENERATION", "“I’ve let them know.”", False, "fault"),  # noqa: RUF001
 ]
 
 
