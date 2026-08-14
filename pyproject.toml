@@ -4,26 +4,42 @@ build-backend = "hatchling.build"
 
 [project]
 name = "postflight"
-version = "0.0.1"
+version = "0.1.0"
 description = "Turn-level failure detection for tool-calling agents"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Apache-2.0" }
-keywords = ["llm", "agents", "observability", "evaluation", "mcp", "tool-calling"]
+# PEP 639: a bare SPDX expression, NOT the old {text = …} table. PyPI REJECTS an upload
+# that carries both this and a `License ::` classifier, so the classifier is gone rather
+# than merely discouraged. No upper bound on requires-python either — one makes the
+# package uninstallable on the next Python release for everyone downstream.
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Hemanth Chittanuru" }]
+keywords = ["llm", "agents", "observability", "evaluation", "tool-calling", "tracing"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
-  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3 :: Only",
+  # Claimed only because py.typed ships INSIDE the package; tests/test_packaging.py
+  # checks that rather than trusting this line.
+  "Typing :: Typed",
   "Topic :: Software Development :: Quality Assurance",
 ]
-# No dependencies, deliberately. Every detector is pure stdlib, and the one client in
-# the tree uses urllib rather than httpx so that adding postflight to a project can
-# never move a version pin. `test_postflight_isolation.py` enforces this.
+# No dependencies, deliberately. Every detector is pure stdlib and the clients use
+# urllib rather than httpx, so adding postflight to a project can never move a version
+# pin. Enforced by tests/test_packaging.py.
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/Base-Homes/postflight"
+Repository = "https://github.com/Base-Homes/postflight"
+Issues = "https://github.com/Base-Homes/postflight/issues"
+Changelog = "https://github.com/Base-Homes/postflight/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]

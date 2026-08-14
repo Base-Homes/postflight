@@ -1,0 +1,32 @@
+name: Bug report
+description: A detector fired when it should not have, or did not when it should
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: postflight version
+      placeholder: "0.1.0"
+    validations: { required: true }
+  - type: dropdown
+    id: adapter
+    attributes:
+      label: Adapter
+      options: [langfuse, otel / openinference, a custom one, not using an adapter]
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened
+      description: >-
+        Name the detector code. For a false positive, the reply text or tool result that
+        triggered it is usually the whole story — redact anything sensitive.
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes:
+      label: A Turn that reproduces it, if you can build one
+      description: >-
+        Constructing the `Turn` directly (see "Writing an adapter" in the README) removes
+        the adapter from the question and makes this ten minutes instead of an afternoon.
+      render: python

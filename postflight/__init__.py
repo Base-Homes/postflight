@@ -16,7 +16,7 @@ from .detectors import (DETECTORS, Detector, faults, run, run_all, succeeded_too
                         tool_outcome)
 from .model import Finding, Generation, Outcome, Severity, Step, ToolCall, Turn
 
-__version__ = "0.0.1"
+__version__ = "0.1.0"
 
 __all__ = [
     "ClaimRule", "Config", "DETECTORS", "Detector", "Finding", "Generation",

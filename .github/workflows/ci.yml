@@ -7,6 +7,11 @@ on:
     branches: [main]
   pull_request:
 
+# Least privilege by default. Naming ANY permission sets every unnamed one to `none`,
+# so a job needing more must say so explicitly rather than inheriting it.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -16,12 +21,18 @@ jobs:
         # Both ends matter. 3.11 is the floor `requires-python` claims, and claiming it
         # without testing it is how 3.12-only syntax ships to someone on 3.11 whose
         # first news of it is a SyntaxError. 3.14 is what the first consumer actually
-        # runs — Base's venv and its `python:3.14` Cloud Build step — so leaving it out
-        # would test every version except the one in production.
+        # runs, so leaving it out would test every version except the one in production.
         python-version: ['3.11', '3.12', '3.13', '3.14']
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      # Actions are pinned to a full-length commit SHA — the only way to consume one
+      # immutably; a tag can be moved under you. The trailing comment is the human-
+      # readable version, and Dependabot rewrites both together.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Without this the job's GITHUB_TOKEN is left in .git/config where any later
+          # step — or anything they invoke — can read it.
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
       # pytest and NOTHING else. postflight advertises zero dependencies, and installing

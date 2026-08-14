@@ -1,5 +1,10 @@
 # postflight
 
+[![tests](https://github.com/Base-Homes/postflight/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Base-Homes/postflight/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/postflight)](https://pypi.org/project/postflight/)
+[![Python versions](https://img.shields.io/pypi/pyversions/postflight)](https://pypi.org/project/postflight/)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 **Turn-level failure detection for tool-calling agents.**
 
 Your evals score what the model *said*. These are the failures that happen in the gaps
@@ -25,6 +30,10 @@ platform's evaluator runtime gives you today.
 The codes are the stable interface. Filter on them, chart them, page on them.
 
 ## Use
+
+```bash
+pip install postflight
+```
 
 ```python
 from postflight import Config, faults, run_all
@@ -185,8 +194,13 @@ detector that cries wolf on the healthy case is how the real rows get ignored. U
 
 ## Status
 
-Alpha, and private while it earns its keep. The taxonomy is the product, so detector
-codes are treated as a breaking change to rename; thresholds and vocabulary are not.
+Alpha. The taxonomy is the product: **detector codes are the public interface**, and
+renaming one is a breaking change. Thresholds, default vocabularies and added detectors
+are not.
+
+Versioning follows SemVer with the 0.x convention the spec leaves undefined made
+explicit — while the major is 0, a **minor** bump may break the API and a **patch** may
+not. See [CHANGELOG.md](CHANGELOG.md).
 
 **Adapters: Langfuse and OpenTelemetry / OpenInference.** The detectors never see a
 vendor — they read `postflight.model.Turn`, so an adapter is just a function from your
