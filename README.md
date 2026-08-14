@@ -172,6 +172,38 @@ nothing is not a decline) and **prose** (`"No matching orders found."` is
 indistinguishable from success without reading it). If a tool of yours only fails in
 prose, the durable fix is in the tool, not here.
 
+### What the other detectors depend on
+
+Same class of problem, and the reason `coverage()` exists: a detector whose input is
+missing does not error, it just never fires — and an empty column reads exactly like a
+clean agent.
+
+| detector | goes quiet if | goes *wrong* if |
+|---|---|---|
+| `UNVERIFIED_CLAIM` | the adapter supplies no reply text, or your replies are not in the vocabulary `claim_rules` knows (they are English by default) | your tool names don't match `satisfied_by` / `satisfied_by_prefix` — then a genuine action reads as an unbacked claim |
+| `TOOL_ERROR` · `TOOL_REFUSAL` · `REPEATED_TOOL` · `TOOL_STORM` | the adapter maps no tool spans | — |
+| `SLOW_TURN` | the adapter supplies no timestamps | — |
+| `NO_CACHE_HIT` | no token counts, or the producer reports no cache usage | — |
+| `EMPTY_REPLY` | there are no generations | the adapter fails to extract reply text — then it fires on **every** turn |
+| `GATE_FILTERED` | `quiet_kinds` is unset (the default) | — |
+
+Note the coupling: a broken reply mapping silences `UNVERIFIED_CLAIM` *and* makes
+`EMPTY_REPLY` fire on everything. One wrong field, two wrong columns, in opposite
+directions.
+
+So check rather than assume:
+
+```python
+from postflight import coverage
+
+for row in coverage(turns, cfg):
+    print(row)     # e.g. "NO_CACHE_HIT: INERT — no generation reports cache usage"
+```
+
+It reports structural inertness only — an input absent from every turn. It will not tell
+you a detector is broken because its count is zero, because a tool that never errored is
+a healthy agent, and conflating those would just move the problem up a level.
+
 `refusal_exemptions` is the other direction — shapes that look like refusals and are
 not. The shipped one is `{"sent": false, "queued": true}`: a send handed off to a relay.
 Exemptions outrank `refusal_predicates`, so widening your detection cannot silently

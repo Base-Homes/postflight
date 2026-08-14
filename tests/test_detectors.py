@@ -3,20 +3,38 @@
 Every "does NOT fire" case pins a healthy pattern the rule must stay clear of. Those are
 the half worth keeping green: a detector is easy to make fire and hard to keep quiet.
 """
+
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from postflight import (ClaimRule, Config, Finding, Generation, Outcome, Severity,
-                        ToolCall, Turn, faults, run, tool_outcome)
+from postflight import (
+    ClaimRule,
+    Config,
+    Finding,
+    Generation,
+    Outcome,
+    Severity,
+    ToolCall,
+    Turn,
+    faults,
+    run,
+    tool_outcome,
+)
 
-T0 = datetime(2026, 8, 13, 12, 0, tzinfo=timezone.utc)
+T0 = datetime(2026, 8, 13, 12, 0, tzinfo=UTC)
 
 
 def turn(*steps, kind="chat.turn", **kw) -> Turn:
-    return Turn(id="t1", kind=kind, steps=tuple(steps), started_at=T0,
-                ended_at=T0 + timedelta(seconds=kw.pop("seconds", 1)), **kw)
+    return Turn(
+        id="t1",
+        kind=kind,
+        steps=tuple(steps),
+        started_at=T0,
+        ended_at=T0 + timedelta(seconds=kw.pop("seconds", 1)),
+        **kw,
+    )
 
 
 def gen(text="ok", **kw) -> Generation:
@@ -33,6 +51,7 @@ def codes(findings: list[Finding]) -> set[str]:
 
 # --- tool outcome ---------------------------------------------------------------
 
+
 def test_transport_error_is_errored():
     assert tool_outcome(tool("x", is_error=True), Config()) is Outcome.ERRORED
 
@@ -43,7 +62,9 @@ def test_error_text_prefix_is_errored():
 
 
 def test_in_body_decline_is_refused_not_errored():
-    assert tool_outcome(tool("x", result={"updated": False}), Config()) is Outcome.REFUSED
+    assert (
+        tool_outcome(tool("x", result={"updated": False}), Config()) is Outcome.REFUSED
+    )
 
 
 def test_zero_count_is_not_a_refusal():
@@ -58,21 +79,30 @@ def test_queued_handoff_is_not_a_refusal():
 
 # --- unverified claim -----------------------------------------------------------
 
+
 def test_claim_without_tool_flags():
     found = run(turn(gen("I've sent them a message about the repair.")))
     assert "UNVERIFIED_CLAIM" in codes(found)
 
 
 def test_claim_with_matching_tool_prefix_is_clean():
-    found = run(turn(tool("send_email", result={"sent": True}),
-                     gen("I've emailed them the details.")))
+    found = run(
+        turn(
+            tool("send_email", result={"sent": True}),
+            gen("I've emailed them the details."),
+        )
+    )
     assert "UNVERIFIED_CLAIM" not in codes(found)
 
 
 def test_claim_backed_by_a_REFUSED_tool_still_flags():
     """The whole point: the tool ran, so every did-it-run guard is satisfied."""
-    found = run(turn(tool("send_email", result={"sent": False}),
-                     gen("I've emailed them the details.")))
+    found = run(
+        turn(
+            tool("send_email", result={"sent": False}),
+            gen("I've emailed them the details."),
+        )
+    )
     assert "UNVERIFIED_CLAIM" in codes(found)
 
 
@@ -87,26 +117,31 @@ def test_negation_two_clauses_back_does_not_rescue_a_claim():
 
 
 def test_relayed_third_party_action_is_not_a_claim():
-    """"The owner emailed you" is the agent reporting what somebody ELSE did. The
+    """ "The owner emailed you" is the agent reporting what somebody ELSE did. The
     verb-object pair is identical to a real claim; only the subject differs."""
     found = run(turn(gen("The owner emailed you about the invoice.")))
     assert "UNVERIFIED_CLAIM" not in codes(found)
 
 
-@pytest.mark.parametrize("reply", [
-    "I've sent them a message.",
-    "Sent them a message just now.",
-    # The subject guard must be adjacent: "the call" here is an object two clauses
-    # back, and the real subject is first-person.
-    "After the call I emailed them the details.",
-])
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "I've sent them a message.",
+        "Sent them a message just now.",
+        # The subject guard must be adjacent: "the call" here is an object two clauses
+        # back, and the real subject is first-person.
+        "After the call I emailed them the details.",
+    ],
+)
 def test_first_party_claims_survive_the_subject_guard(reply):
     assert "UNVERIFIED_CLAIM" in codes(run(turn(gen(reply))))
 
 
 def test_narrating_kind_is_exempt():
     cfg = Config(narrating_kinds=frozenset({"digest.turn"}))
-    found = run(turn(gen("A message was sent to them in June."), kind="digest.turn"), cfg)
+    found = run(
+        turn(gen("A message was sent to them in June."), kind="digest.turn"), cfg
+    )
     assert "UNVERIFIED_CLAIM" not in codes(found)
 
 
@@ -118,14 +153,22 @@ def test_unknown_kind_is_NOT_exempt():
 
 
 def test_custom_claim_rule():
-    cfg = Config(claim_rules=(ClaimRule(
-        name="ticket_filed",
-        pattern=re.compile(r"\bfiled\b[^.\n]{0,40}\bticket\b", re.IGNORECASE),
-        satisfied_by=frozenset({"create_ticket"}),
-    ),))
+    cfg = Config(
+        claim_rules=(
+            ClaimRule(
+                name="ticket_filed",
+                pattern=re.compile(r"\bfiled\b[^.\n]{0,40}\bticket\b", re.IGNORECASE),
+                satisfied_by=frozenset({"create_ticket"}),
+            ),
+        )
+    )
     assert "UNVERIFIED_CLAIM" in codes(run(turn(gen("Filed a ticket for you.")), cfg))
-    clean = run(turn(tool("create_ticket", result={"ok": True}),
-                     gen("Filed a ticket for you.")), cfg)
+    clean = run(
+        turn(
+            tool("create_ticket", result={"ok": True}), gen("Filed a ticket for you.")
+        ),
+        cfg,
+    )
     assert "UNVERIFIED_CLAIM" not in codes(clean)
 
 
@@ -136,9 +179,11 @@ def test_unsatisfiable_claim_rule_is_rejected():
 
 # --- volume + timing ------------------------------------------------------------
 
+
 def test_repeated_and_storm():
-    found = run(turn(*[tool("get_thing", result={"ok": True}) for _ in range(8)],
-                     gen("done")))
+    found = run(
+        turn(*[tool("get_thing", result={"ok": True}) for _ in range(8)], gen("done"))
+    )
     assert {"REPEATED_TOOL", "TOOL_STORM"} <= codes(found)
 
 
@@ -150,10 +195,15 @@ def test_slow_turn_uses_configured_threshold():
 
 # --- cache ----------------------------------------------------------------------
 
+
 def test_no_cache_hit_on_a_big_repeat_prompt():
     """Explicit zeros: the producer REPORTED no cache reads, which is a real miss."""
-    found = run(turn(gen("", input_tokens=9000, cache_read_tokens=0),
-                     gen("done", input_tokens=9000, cache_read_tokens=0)))
+    found = run(
+        turn(
+            gen("", input_tokens=9000, cache_read_tokens=0),
+            gen("done", input_tokens=9000, cache_read_tokens=0),
+        )
+    )
     assert "NO_CACHE_HIT" in codes(found)
 
 
@@ -166,8 +216,12 @@ def test_unreported_cache_is_not_a_miss():
 
 
 def test_cache_read_clears_it():
-    found = run(turn(gen("", input_tokens=9000, cache_read_tokens=0),
-                     gen("done", input_tokens=9000, cache_read_tokens=8000)))
+    found = run(
+        turn(
+            gen("", input_tokens=9000, cache_read_tokens=0),
+            gen("done", input_tokens=9000, cache_read_tokens=8000),
+        )
+    )
     assert "NO_CACHE_HIT" not in codes(found)
 
 
@@ -178,19 +232,23 @@ def test_single_generation_never_flags():
 
 def test_many_small_prompts_do_not_sum_past_the_floor():
     """Caching is per call. Summing is the arithmetic that fabricates this finding."""
-    found = run(turn(*[gen("d", input_tokens=1500, cache_read_tokens=0)
-                       for _ in range(27)]))
+    found = run(
+        turn(*[gen("d", input_tokens=1500, cache_read_tokens=0) for _ in range(27)])
+    )
     assert "NO_CACHE_HIT" not in codes(found)
 
 
 def test_cache_floor_is_model_aware():
     """1500 tokens is cacheable on Opus and not on Haiku."""
-    steps = (gen("", input_tokens=1500, model="claude-opus-5", cache_read_tokens=0),
-             gen("done", input_tokens=1500, model="claude-opus-5", cache_read_tokens=0))
+    steps = (
+        gen("", input_tokens=1500, model="claude-opus-5", cache_read_tokens=0),
+        gen("done", input_tokens=1500, model="claude-opus-5", cache_read_tokens=0),
+    )
     assert "NO_CACHE_HIT" in codes(run(turn(*steps)))
 
 
 # --- reply --------------------------------------------------------------------
+
 
 def test_empty_reply_flags_on_a_conversational_kind():
     cfg = Config(conversational_kinds=frozenset({"chat.turn"}))
@@ -219,18 +277,22 @@ def test_quiet_kind_with_no_work_is_info_not_fault():
 def test_quiet_kind_works_without_being_listed_as_conversational_too():
     """Declaring a kind quiet is the statement; requiring it twice made the config
     silently inert and dropped GATE_FILTERED entirely."""
-    cfg = Config(conversational_kinds=frozenset({"chat.turn"}),
-                 quiet_kinds=frozenset({"group.turn"}))
+    cfg = Config(
+        conversational_kinds=frozenset({"chat.turn"}),
+        quiet_kinds=frozenset({"group.turn"}),
+    )
     assert codes(run(turn(gen(""), kind="group.turn"), cfg)) == {"GATE_FILTERED"}
-    worked = run(turn(tool("get_thing", result={"ok": True}), gen(""),
-                      kind="group.turn"), cfg)
+    worked = run(
+        turn(tool("get_thing", result={"ok": True}), gen(""), kind="group.turn"), cfg
+    )
     assert "EMPTY_REPLY" in codes(worked)
 
 
 def test_quiet_kind_that_did_work_and_said_nothing_is_a_fault():
     cfg = Config(quiet_kinds=frozenset({"group.turn"}))
-    found = run(turn(tool("get_thing", result={"ok": True}), gen(""),
-                     kind="group.turn"), cfg)
+    found = run(
+        turn(tool("get_thing", result={"ok": True}), gen(""), kind="group.turn"), cfg
+    )
     assert "EMPTY_REPLY" in codes(found)
 
 
@@ -240,6 +302,7 @@ def test_non_conversational_kind_owes_nothing():
 
 
 # --- model ----------------------------------------------------------------------
+
 
 def test_total_tokens_counts_cached_input():
     """`input_tokens` is the UNCACHED prompt alone, so input+output omits everything the
@@ -261,14 +324,18 @@ def test_duration_falls_back_to_step_stamps():
 
 # --- what TOOL_REFUSAL can and cannot see ---------------------------------------
 
-@pytest.mark.parametrize("result", [
-    {"status": "failed"},          # a status-style convention
-    {"result": "declined"},        # an enum-style one
-    "No matching orders found.",   # prose
-    {"count": 0, "results": []},   # an empty result set
-    [],
-    {},
-])
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        {"status": "failed"},  # a status-style convention
+        {"result": "declined"},  # an enum-style one
+        "No matching orders found.",  # prose
+        {"count": 0, "results": []},  # an empty result set
+        [],
+        {},
+    ],
+)
 def test_shapes_the_defaults_deliberately_do_not_call_refusals(result):
     """The default vocabulary is boolean success flags. Everything else reads as OK.
 
@@ -281,9 +348,11 @@ def test_shapes_the_defaults_deliberately_do_not_call_refusals(result):
 
 
 def test_refusal_predicates_add_a_convention():
-    cfg = Config(refusal_predicates=(
-        lambda r: isinstance(r, dict) and r.get("status") in {"failed", "declined"},
-    ))
+    cfg = Config(
+        refusal_predicates=(
+            lambda r: isinstance(r, dict) and r.get("status") in {"failed", "declined"},
+        )
+    )
     assert tool_outcome(tool("t", result={"status": "failed"}), cfg) is Outcome.REFUSED
     assert tool_outcome(tool("t", result={"status": "ok"}), cfg) is Outcome.OK
 

@@ -11,15 +11,41 @@ at your traces, get named findings back.
     turns = LangfuseAdapter().turns(client.observations(hours=24))
     findings = run_all(turns, Config())
 """
+
 from .config import UNKNOWN_KIND, ClaimRule, Config
-from .detectors import (DETECTORS, Detector, faults, run, run_all, succeeded_tools,
-                        tool_outcome)
+from .coverage import Coverage, coverage
+from .detectors import (
+    DETECTORS,
+    Detector,
+    faults,
+    run,
+    run_all,
+    succeeded_tools,
+    tool_outcome,
+)
 from .model import Finding, Generation, Outcome, Severity, Step, ToolCall, Turn
 
 __version__ = "0.1.0"
 
 __all__ = [
-    "ClaimRule", "Config", "DETECTORS", "Detector", "Finding", "Generation",
-    "Outcome", "Severity", "Step", "ToolCall", "Turn", "UNKNOWN_KIND", "faults",
-    "run", "run_all", "succeeded_tools", "tool_outcome", "__version__",
+    "DETECTORS",
+    "UNKNOWN_KIND",
+    "ClaimRule",
+    "Config",
+    "Coverage",
+    "Detector",
+    "Finding",
+    "Generation",
+    "Outcome",
+    "Severity",
+    "Step",
+    "ToolCall",
+    "Turn",
+    "__version__",
+    "coverage",
+    "faults",
+    "run",
+    "run_all",
+    "succeeded_tools",
+    "tool_outcome",
 ]

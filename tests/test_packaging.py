@@ -4,6 +4,7 @@ Each of these is a claim the project makes to someone who has not read the sourc
 annotations are visible to their type checker, that installing it pulls nothing else in,
 and that the version a bug report quotes matches what the metadata says.
 """
+
 import pathlib
 import tomllib
 

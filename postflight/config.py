@@ -8,11 +8,13 @@ tool-calling agent looks like before you have watched yours fail.
 
 Nothing here is required. `Config()` runs.
 """
+
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 UNKNOWN_KIND = "unknown"
 
@@ -36,8 +38,11 @@ class ClaimRule:
     def satisfied(self, succeeded: frozenset[str]) -> bool:
         if succeeded & self.satisfied_by:
             return True
-        return any(name.startswith(self.satisfied_by_prefix)
-                   for name in succeeded) if self.satisfied_by_prefix else False
+        return (
+            any(name.startswith(self.satisfied_by_prefix) for name in succeeded)
+            if self.satisfied_by_prefix
+            else False
+        )
 
 
 # Verb-then-object and object-then-verb, because a model writes both ("added the
@@ -79,8 +84,16 @@ DEFAULT_CLAIM_RULES: tuple[ClaimRule, ...] = (
             "updated|changed|moved|advanced|marked|set|closed|resolved",
             "record|entry|ticket|issue|item|status|stage|state",
         ),
-        satisfied_by_prefix=("update_", "set_", "edit_", "advance_", "mark_", "close_",
-                             "patch_", "resolve_"),
+        satisfied_by_prefix=(
+            "update_",
+            "set_",
+            "edit_",
+            "advance_",
+            "mark_",
+            "close_",
+            "patch_",
+            "resolve_",
+        ),
     ),
     ClaimRule(
         name="scheduled",
@@ -112,13 +125,24 @@ DEFAULT_NEGATION = re.compile(
 # two clauses back and the real subject is first-person. First-person subjects (I, we)
 # are deliberately absent — those are the claims this detector exists to catch.
 DEFAULT_THIRD_PARTY_SUBJECT = re.compile(
-    r"\b(?:they|he|she|it|the\s+\w+|an?\s+\w+|who|which)\s+$", re.IGNORECASE)
+    r"\b(?:they|he|she|it|the\s+\w+|an?\s+\w+|who|which)\s+$", re.IGNORECASE
+)
 
 # Keys a tool sets to False when it ran fine and DECLINED. `is False` matters at the
 # read site: a bulk create returns an integer count, and `0 == False` is True.
 DEFAULT_SUCCESS_FLAGS: tuple[str, ...] = (
-    "ok", "success", "updated", "created", "saved", "sent", "found", "deleted",
-    "linked", "scheduled", "captured", "completed",
+    "ok",
+    "success",
+    "updated",
+    "created",
+    "saved",
+    "sent",
+    "found",
+    "deleted",
+    "linked",
+    "scheduled",
+    "captured",
+    "completed",
 )
 
 # Anthropic's minimum cacheable prefix, by model-name substring. Below it, caching is
@@ -139,9 +163,11 @@ def _queued_not_sent(result: Any) -> bool:
     that fires on the healthy path is one people learn to ignore. Whether the queue
     actually DRAINS is a fair question, but not one a trace can answer.
     """
-    return (isinstance(result, dict)
-            and bool(result.get("queued"))
-            and result.get("sent") is False)
+    return (
+        isinstance(result, dict)
+        and bool(result.get("queued"))
+        and result.get("sent") is False
+    )
 
 
 @dataclass(frozen=True)
@@ -154,7 +180,9 @@ class Config:
     # model is unknown. Deliberately the LARGEST common floor: guessing low invents
     # NO_CACHE_HIT findings on prompts that were never cacheable.
     cache_floor_tokens: int = 4096
-    cache_floors: dict[str, int] = field(default_factory=lambda: dict(DEFAULT_CACHE_FLOORS))
+    cache_floors: dict[str, int] = field(
+        default_factory=lambda: dict(DEFAULT_CACHE_FLOORS)
+    )
 
     # --- tool outcome classification --------------------------------------------
     success_flags: tuple[str, ...] = DEFAULT_SUCCESS_FLAGS
@@ -204,8 +232,11 @@ class Config:
     quiet_kinds: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
-        unsatisfiable = [r.name for r in self.claim_rules
-                         if not r.satisfied_by and not r.satisfied_by_prefix]
+        unsatisfiable = [
+            r.name
+            for r in self.claim_rules
+            if not r.satisfied_by and not r.satisfied_by_prefix
+        ]
         if unsatisfiable:
             raise ValueError(
                 "claim rules with no satisfying tool would flag every match: "
@@ -234,6 +265,9 @@ class Config:
         if not model:
             return self.cache_floor_tokens
         lowered = model.lower()
-        hits = [(len(key), floor) for key, floor in self.cache_floors.items()
-                if key.lower() in lowered]
+        hits = [
+            (len(key), floor)
+            for key, floor in self.cache_floors.items()
+            if key.lower() in lowered
+        ]
         return max(hits)[1] if hits else self.cache_floor_tokens

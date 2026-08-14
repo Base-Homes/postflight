@@ -12,6 +12,7 @@ reason the grouping happens locally instead of server-side:
     STRINGS. A reader that assumes parsed objects silently sees JSON scaffolding as
     the reply text, and every claim regex then matches punctuation instead of prose.
 """
+
 from __future__ import annotations
 
 import base64
@@ -21,9 +22,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Any, Iterable
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from ..config import UNKNOWN_KIND
 from ..model import Generation, Step, ToolCall, Turn
@@ -57,12 +59,20 @@ class LangfuseAdapter:
                 steps.append(self._tool_call(row))
 
         root = next((o for o in rows if o.get("isRootObservation")), None)
-        kind = next((str(o.get("name")) for o in rows
-                     if str(o.get("name") or "").endswith(self.root_span_suffix)),
-                    None)
+        kind = next(
+            (
+                str(o.get("name"))
+                for o in rows
+                if str(o.get("name") or "").endswith(self.root_span_suffix)
+            ),
+            None,
+        )
         starts = [_ts(o.get("startTime")) for o in rows if o.get("startTime")]
-        ends = [_ts(o.get("endTime") or o.get("startTime")) for o in rows
-                if o.get("startTime")]
+        ends = [
+            _ts(o.get("endTime") or o.get("startTime"))
+            for o in rows
+            if o.get("startTime")
+        ]
         return Turn(
             id=trace_id,
             kind=kind or UNKNOWN_KIND,
@@ -71,7 +81,9 @@ class LangfuseAdapter:
             # them — take the first non-empty rather than the root's, since a root span
             # opened before the user is resolved carries "".
             user_id=next((o.get("userId") for o in rows if o.get("userId")), None),
-            session_id=next((o.get("sessionId") for o in rows if o.get("sessionId")), None),
+            session_id=next(
+                (o.get("sessionId") for o in rows if o.get("sessionId")), None
+            ),
             started_at=min([s for s in starts if s], default=None),
             ended_at=max([e for e in ends if e], default=None),
             metadata={"observations": len(rows), "root": (root or {}).get("name")},
@@ -85,8 +97,9 @@ class LangfuseAdapter:
             if trace_id:
                 by_trace[trace_id].append(row)
         built = [self.turn(tid, rows) for tid, rows in by_trace.items()]
-        built.sort(key=lambda t: t.started_at or datetime.min.replace(tzinfo=timezone.utc),
-                   reverse=True)
+        built.sort(
+            key=lambda t: t.started_at or datetime.min.replace(tzinfo=UTC), reverse=True
+        )
         return built
 
     def _generation(self, row: dict[str, Any]) -> Generation:
@@ -96,9 +109,18 @@ class LangfuseAdapter:
         # never fires, because a zero prompt is never "big".
         usage = row.get("usage") or {}
         details = row.get("usageDetails") or {}
-        pick = lambda *keys: next(
-            (int(src.get(key) or 0) for src in (usage, details) for key in keys
-             if src.get(key)), 0)
+
+        def pick(*keys: str) -> int:
+            return next(
+                (
+                    int(src.get(key) or 0)
+                    for src in (usage, details)
+                    for key in keys
+                    if src.get(key)
+                ),
+                0,
+            )
+
         return Generation(
             model=row.get("model"),
             text=text_of(row.get("output")),
@@ -123,7 +145,7 @@ class LangfuseAdapter:
         metadata = row.get("metadata")
         metadata = metadata if isinstance(metadata, dict) else {}
         return ToolCall(
-            name=str(row.get("name"))[len(self.tool_span_prefix):],
+            name=str(row.get("name"))[len(self.tool_span_prefix) :],
             arguments=arguments if isinstance(arguments, dict) else None,
             # Keep the raw string when it did not parse — the error-prefix check reads it.
             result=result if result is not None else row.get("output"),
@@ -166,8 +188,11 @@ def text_of(output: Any) -> str:
         inner = parsed(output)
         return text_of(inner) if isinstance(inner, (list, dict)) else output
     if isinstance(output, list):
-        return " ".join(block.get("text", "") for block in output
-                        if isinstance(block, dict) and block.get("type") == "text")
+        return " ".join(
+            block.get("text", "")
+            for block in output
+            if isinstance(block, dict) and block.get("type") == "text"
+        )
     if isinstance(output, dict):
         return output.get("text") or ""
     return ""
@@ -189,7 +214,7 @@ def _ts(value: str | None) -> datetime | None:
         stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
-    return stamp if stamp.tzinfo else stamp.replace(tzinfo=timezone.utc)
+    return stamp if stamp.tzinfo else stamp.replace(tzinfo=UTC)
 
 
 class LangfuseClient:
@@ -209,7 +234,8 @@ class LangfuseClient:
         delay = 2.0
         for attempt in range(retries + 1):
             request = urllib.request.Request(
-                self.host + path, headers={"Authorization": "Basic " + self._auth})
+                self.host + path, headers={"Authorization": "Basic " + self._auth}
+            )
             try:
                 with urllib.request.urlopen(request, timeout=90) as response:
                     if self.pause:
@@ -222,21 +248,27 @@ class LangfuseClient:
                 delay = min(delay * 2, 30.0)
         raise RuntimeError("unreachable")
 
-    def observations(self, hours: int = 24, environment: str | None = None,
-                     on_page: Any = None) -> list[dict[str, Any]]:
-        since = (datetime.now(timezone.utc) - timedelta(hours=hours)
-                 ).strftime("%Y-%m-%dT%H:%M:%SZ")
+    def observations(
+        self, hours: int = 24, environment: str | None = None, on_page: Any = None
+    ) -> list[dict[str, Any]]:
+        since = (datetime.now(UTC) - timedelta(hours=hours)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
         rows: list[dict[str, Any]] = []
         cursor, pages = None, 0
         while True:
-            params: dict[str, Any] = {"fromStartTime": since, "limit": _PAGE,
-                                      "fields": _FIELDS}
+            params: dict[str, Any] = {
+                "fromStartTime": since,
+                "limit": _PAGE,
+                "fields": _FIELDS,
+            }
             if environment:
                 params["environment"] = environment
             if cursor:
                 params["cursor"] = cursor
-            data = self.get("/api/public/v2/observations?"
-                            + urllib.parse.urlencode(params))
+            data = self.get(
+                "/api/public/v2/observations?" + urllib.parse.urlencode(params)
+            )
             rows.extend(data.get("data") or [])
             pages += 1
             if on_page:

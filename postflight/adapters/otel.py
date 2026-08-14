@@ -23,13 +23,15 @@ all. The absence is real rather than a mapping gap, and the distinction is load-
 — scored as zero, any turn whose prompt exceeds the model's cacheable floor reads as a
 cache miss.
 """
+
 from __future__ import annotations
 
 import json
 import re
 from collections import defaultdict
-from datetime import datetime, timezone
-from typing import Any, Iterable
+from collections.abc import Iterable
+from datetime import UTC, datetime
+from typing import Any
 
 from ..config import UNKNOWN_KIND
 from ..model import Generation, Step, ToolCall, Turn
@@ -37,7 +39,8 @@ from ..model import Generation, Step, ToolCall, Turn
 _KIND = "openinference.span.kind"
 # `llm.output_messages.0.message.contents.1.message_content.text` → (0, 1)
 _TEXT_RE = re.compile(
-    r"^llm\.output_messages\.(\d+)\.message\.contents\.(\d+)\.message_content\.text$")
+    r"^llm\.output_messages\.(\d+)\.message\.contents\.(\d+)\.message_content\.text$"
+)
 # The unflattened variant some instrumentations emit instead.
 _CONTENT_RE = re.compile(r"^llm\.output_messages\.(\d+)\.message\.content$")
 
@@ -74,12 +77,12 @@ def _ts(value: Any) -> datetime | None:
     if value in (None, ""):
         return None
     if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(value / 1e9, tz=timezone.utc)
+        return datetime.fromtimestamp(value / 1e9, tz=UTC)
     try:
         stamp = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
         return None
-    return stamp if stamp.tzinfo else stamp.replace(tzinfo=timezone.utc)
+    return stamp if stamp.tzinfo else stamp.replace(tzinfo=UTC)
 
 
 def reply_text(attrs: dict[str, Any]) -> str:
@@ -125,7 +128,9 @@ def _generation(span: dict[str, Any]) -> Generation:
         # OpenInference's prompt_details convention, where the instrumentation reports
         # it at all. None when it does not — see the module docstring.
         cache_read_tokens=_opt_int(attrs, "llm.token_count.prompt_details.cache_read"),
-        cache_write_tokens=_opt_int(attrs, "llm.token_count.prompt_details.cache_write"),
+        cache_write_tokens=_opt_int(
+            attrs, "llm.token_count.prompt_details.cache_write"
+        ),
         started_at=_ts(span.get("start_time")),
         ended_at=_ts(span.get("end_time")),
     )
@@ -140,7 +145,9 @@ def _tool_call(span: dict[str, Any]) -> ToolCall:
     return ToolCall(
         # `tool.name` where the instrumentation sets it, else the span name with the
         # conventional `tool.` prefix stripped.
-        name=str(attrs.get("tool.name") or span.get("name") or "").removeprefix("tool."),
+        name=str(attrs.get("tool.name") or span.get("name") or "").removeprefix(
+            "tool."
+        ),
         arguments=arguments if isinstance(arguments, dict) else None,
         result=parsed if parsed is not None else raw_out,
         is_error=status == "ERROR",
@@ -188,8 +195,9 @@ def turns(spans: Iterable[dict[str, Any]]) -> list[Turn]:
         if trace_id:
             by_trace[str(trace_id)].append(span)
     built = [turn(tid, rows) for tid, rows in by_trace.items()]
-    built.sort(key=lambda t: t.started_at or datetime.min.replace(tzinfo=timezone.utc),
-               reverse=True)
+    built.sort(
+        key=lambda t: t.started_at or datetime.min.replace(tzinfo=UTC), reverse=True
+    )
     return built
 
 

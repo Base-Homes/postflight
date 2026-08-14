@@ -10,11 +10,12 @@ explicitly refuses to load its siblings, which is why none of them can express t
 Adapters build `Turn`s; detectors read them. Nothing in this module knows about a
 vendor, a transport, or an application domain.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
@@ -54,8 +55,11 @@ class Generation:
         prompt sits outside it. Summing only `input + output` understates a cached
         agent by an order of magnitude, which is the direction that makes it look free.
         """
-        return (self.input_tokens + (self.cache_read_tokens or 0)
-                + (self.cache_write_tokens or 0))
+        return (
+            self.input_tokens
+            + (self.cache_read_tokens or 0)
+            + (self.cache_write_tokens or 0)
+        )
 
     @property
     def total_tokens(self) -> int:
@@ -161,7 +165,7 @@ class Turn:
         return sum(g.cache_write_tokens or 0 for g in self.generations)
 
 
-class Severity(str, Enum):
+class Severity(StrEnum):
     """FAULT is something to fix. INFO is a count worth watching.
 
     The distinction is load-bearing in reporting, not decoration: a detector that fires
@@ -183,7 +187,7 @@ class Finding:
     detail: dict[str, Any] = field(default_factory=dict)
 
 
-class Outcome(str, Enum):
+class Outcome(StrEnum):
     OK = "ok"
     REFUSED = "refused"
     ERRORED = "errored"

@@ -1,0 +1,9 @@
+# Optional for contributors, authoritative in CI — the same two commands run in both,
+# so a green pre-commit means a green lint job.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.3
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format

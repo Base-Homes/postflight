@@ -9,10 +9,12 @@ fails that its own logs do not make obvious. Where a rule looks oddly narrow, th
 comment says which healthy case it must not fire on: the narrowing is most of the work,
 and a detector that cries wolf is one people learn to ignore.
 """
+
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any, Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
+from typing import Any
 
 from .config import Config
 from .model import Finding, Outcome, Severity, ToolCall, Turn
@@ -48,14 +50,17 @@ def tool_outcome(call: ToolCall, cfg: Config) -> Outcome:
         return Outcome.OK
     if any(is_refusal(result) for is_refusal in cfg.refusal_predicates):
         return Outcome.REFUSED
-    if isinstance(result, dict) and any(result.get(k) is False for k in cfg.success_flags):
+    if isinstance(result, dict) and any(
+        result.get(k) is False for k in cfg.success_flags
+    ):
         return Outcome.REFUSED
     return Outcome.OK
 
 
 def succeeded_tools(turn: Turn, cfg: Config) -> frozenset[str]:
-    return frozenset(c.name for c in turn.tool_calls
-                     if tool_outcome(c, cfg) is Outcome.OK)
+    return frozenset(
+        c.name for c in turn.tool_calls if tool_outcome(c, cfg) is Outcome.OK
+    )
 
 
 def _asserts(reply: str, rule, cfg: Config) -> bool:
@@ -70,7 +75,7 @@ def _asserts(reply: str, rule, cfg: Config) -> bool:
     ELSE did; the verb-object pair is identical and only one of the two is a claim.
     """
     for match in rule.pattern.finditer(reply or ""):
-        window = reply[max(0, match.start() - 40):match.start()]
+        window = reply[max(0, match.start() - 40) : match.start()]
         tail = window.rsplit(".", 1)[-1].rsplit(",", 1)[-1]
         if cfg.negation.search(tail) or cfg.third_party_subject.search(tail):
             continue
@@ -87,7 +92,8 @@ def detect_tool_error(turn: Turn, cfg: Config) -> Iterator[Finding]:
     hits = [c for c in turn.tool_calls if tool_outcome(c, cfg) is Outcome.ERRORED]
     if hits:
         yield Finding(
-            code="TOOL_ERROR", turn_id=turn.id,
+            code="TOOL_ERROR",
+            turn_id=turn.id,
             message=f"{len(hits)} tool call(s) raised",
             detail={"calls": [_summary(c) for c in hits]},
         )
@@ -102,7 +108,8 @@ def detect_tool_refusal(turn: Turn, cfg: Config) -> Iterator[Finding]:
     hits = [c for c in turn.tool_calls if tool_outcome(c, cfg) is Outcome.REFUSED]
     if hits:
         yield Finding(
-            code="TOOL_REFUSAL", turn_id=turn.id,
+            code="TOOL_REFUSAL",
+            turn_id=turn.id,
             message=f"{len(hits)} tool call(s) declined in-body",
             detail={"calls": [_summary(c) for c in hits]},
         )
@@ -121,14 +128,21 @@ def detect_unverified_claim(turn: Turn, cfg: Config) -> Iterator[Finding]:
     if not reply.strip():
         return
     succeeded = succeeded_tools(turn, cfg)
-    claimed = [r.name for r in cfg.claim_rules
-               if _asserts(reply, r, cfg) and not r.satisfied(succeeded)]
+    claimed = [
+        r.name
+        for r in cfg.claim_rules
+        if _asserts(reply, r, cfg) and not r.satisfied(succeeded)
+    ]
     if claimed:
         yield Finding(
-            code="UNVERIFIED_CLAIM", turn_id=turn.id,
+            code="UNVERIFIED_CLAIM",
+            turn_id=turn.id,
             message=f"reply claims {', '.join(claimed)} with no successful tool",
-            detail={"claims": claimed, "reply_preview": reply[:300],
-                    "succeeded_tools": sorted(succeeded)},
+            detail={
+                "claims": claimed,
+                "reply_preview": reply[:300],
+                "succeeded_tools": sorted(succeeded),
+            },
         )
 
 
@@ -138,12 +152,15 @@ def detect_repeated_tool(turn: Turn, cfg: Config) -> Iterator[Finding]:
     Usually the model searching for an argument it was never given — a context gap,
     not a model failure. Fix the prompt, not the temperature.
     """
-    repeats = {name: count for name, count
-               in Counter(c.name for c in turn.tool_calls).items()
-               if count >= cfg.repeated_tool}
+    repeats = {
+        name: count
+        for name, count in Counter(c.name for c in turn.tool_calls).items()
+        if count >= cfg.repeated_tool
+    }
     if repeats:
         yield Finding(
-            code="REPEATED_TOOL", turn_id=turn.id,
+            code="REPEATED_TOOL",
+            turn_id=turn.id,
             message=f"repeated calls: {repeats}",
             detail={"repeats": repeats},
         )
@@ -154,10 +171,10 @@ def detect_tool_storm(turn: Turn, cfg: Config) -> Iterator[Finding]:
     count = len(turn.tool_calls)
     if count >= cfg.tool_storm:
         yield Finding(
-            code="TOOL_STORM", turn_id=turn.id,
+            code="TOOL_STORM",
+            turn_id=turn.id,
             message=f"{count} tool calls in one turn",
-            detail={"tool_calls": count,
-                    "tools": [c.name for c in turn.tool_calls]},
+            detail={"tool_calls": count, "tools": [c.name for c in turn.tool_calls]},
         )
 
 
@@ -166,10 +183,13 @@ def detect_slow_turn(turn: Turn, cfg: Config) -> Iterator[Finding]:
     seconds = turn.duration_s
     if seconds >= cfg.slow_turn_s:
         yield Finding(
-            code="SLOW_TURN", turn_id=turn.id,
+            code="SLOW_TURN",
+            turn_id=turn.id,
             message=f"{seconds:.1f}s",
-            detail={"duration_s": round(seconds, 1),
-                    "tool_calls": len(turn.tool_calls)},
+            detail={
+                "duration_s": round(seconds, 1),
+                "tool_calls": len(turn.tool_calls),
+            },
         )
 
 
@@ -197,11 +217,15 @@ def detect_no_cache_hit(turn: Turn, cfg: Config) -> Iterator[Finding]:
     floor = cfg.cache_floor_for(largest.model)
     if largest.input_tokens > floor and turn.cache_read_tokens == 0:
         yield Finding(
-            code="NO_CACHE_HIT", turn_id=turn.id,
+            code="NO_CACHE_HIT",
+            turn_id=turn.id,
             message=f"{largest.input_tokens} input tokens, 0 read from cache",
-            detail={"largest_input_tokens": largest.input_tokens,
-                    "cache_floor": floor, "model": largest.model,
-                    "generations": len(gens)},
+            detail={
+                "largest_input_tokens": largest.input_tokens,
+                "cache_floor": floor,
+                "model": largest.model,
+                "generations": len(gens),
+            },
         )
 
 
@@ -222,26 +246,32 @@ def detect_empty_reply(turn: Turn, cfg: Config) -> Iterator[Finding]:
     did_work = bool(turn.tool_calls) or len(turn.generations) > 1
     if turn.kind in cfg.quiet_kinds and not did_work:
         yield Finding(
-            code="GATE_FILTERED", turn_id=turn.id, severity=Severity.INFO,
+            code="GATE_FILTERED",
+            turn_id=turn.id,
+            severity=Severity.INFO,
             message="silent by design — gate dropped the turn without work",
         )
         return
     yield Finding(
-        code="EMPTY_REPLY", turn_id=turn.id,
+        code="EMPTY_REPLY",
+        turn_id=turn.id,
         # Until someone declares which surfaces speak, postflight cannot tell a silent
         # 1:1 channel from a batch job that returns a document, so this reports as
         # INFO. Set `conversational_kinds` and it becomes a fault.
-        severity=(Severity.FAULT if cfg.reply_expectation_configured
-                  else Severity.INFO),
+        severity=(
+            Severity.FAULT if cfg.reply_expectation_configured else Severity.INFO
+        ),
         message="no reply text where one was owed",
-        detail={"tool_calls": len(turn.tool_calls),
-                "generations": len(turn.generations),
-                "reply_expectation_configured": cfg.reply_expectation_configured},
+        detail={
+            "tool_calls": len(turn.tool_calls),
+            "generations": len(turn.generations),
+            "reply_expectation_configured": cfg.reply_expectation_configured,
+        },
     )
 
 
 DETECTORS: tuple[Detector, ...] = (
-    detect_unverified_claim,   # first: the only one a user experiences as a lie
+    detect_unverified_claim,  # first: the only one a user experiences as a lie
     detect_tool_error,
     detect_tool_refusal,
     detect_repeated_tool,
@@ -252,15 +282,19 @@ DETECTORS: tuple[Detector, ...] = (
 )
 
 
-def run(turn: Turn, cfg: Config | None = None,
-        detectors: Iterable[Detector] | None = None) -> list[Finding]:
+def run(
+    turn: Turn, cfg: Config | None = None, detectors: Iterable[Detector] | None = None
+) -> list[Finding]:
     """Every finding for one turn, in `DETECTORS` order (most user-visible first)."""
     cfg = cfg or Config()
     return [f for detector in (detectors or DETECTORS) for f in detector(turn, cfg)]
 
 
-def run_all(turns: Iterable[Turn], cfg: Config | None = None,
-            detectors: Iterable[Detector] | None = None) -> dict[str, list[Finding]]:
+def run_all(
+    turns: Iterable[Turn],
+    cfg: Config | None = None,
+    detectors: Iterable[Detector] | None = None,
+) -> dict[str, list[Finding]]:
     cfg = cfg or Config()
     chosen = tuple(detectors or DETECTORS)
     return {turn.id: run(turn, cfg, chosen) for turn in turns}
