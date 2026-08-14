@@ -1,6 +1,18 @@
 """Emit the light and dark turn-scope diagrams from one definition.
 
-    python docs/img/generate.py docs/img /path/to/Inter-Regular.ttf
+    pip install -e ".[docs]"
+    curl -sL -o Inter.ttf \
+      "https://github.com/google/fonts/raw/main/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf"
+    python docs/img/generate.py docs/img Inter.ttf
+
+That file is the VARIABLE Inter, and a variable font's default master does not
+necessarily match the static release of the same weight, so the axes are pinned below
+rather than left to the default. Pinning is what makes the committed SVGs reproducible
+from a URL that reliably exists.
+
+The font is not vendored. Inter is SIL OFL 1.1, and a package advertising zero
+dependencies should not carry a typeface to build one picture. The committed SVGs are
+outlined, so nothing downstream needs the font at all.
 
 Two decisions that are not obvious from the output:
 
@@ -25,6 +37,7 @@ import sys
 
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.ttLib import TTFont
+from fontTools.varLib import instancer
 
 MONO = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 
@@ -67,8 +80,19 @@ STEPS = [
 class Outliner:
     """Text to glyph outlines. Only what this diagram needs: no kerning, no shaping."""
 
+    # Inter's regular weight and its smallest optical size, which is the one drawn for
+    # text rather than display. A tuple because a mutable class attribute is a footgun.
+    AXES = (("wght", 400), ("opsz", 14))
+
     def __init__(self, ttf: str):
         font = TTFont(ttf)
+        if "fvar" in font:
+            # Without this the outlines come from whatever the default master happens to
+            # be, which drifts between releases and does not match the static weight.
+            present = {a.axisTag for a in font["fvar"].axes}
+            font = instancer.instantiateVariableFont(
+                font, {k: v for k, v in self.AXES if k in present}
+            )
         self.upem = font["head"].unitsPerEm
         self.cmap = font.getBestCmap()
         self.glyphs = font.getGlyphSet()

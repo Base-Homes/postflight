@@ -1,5 +1,7 @@
 # Contributing
 
+<br>
+
 ## Running it
 
 ```bash
@@ -12,6 +14,8 @@ python -m pytest tests/ -q
 There is no install step and no dependency file to sync. If `pip install pytest` is not
 enough to run the suite, that is a bug in this project, not in your setup. The package
 is zero-dependency and CI proves it by installing nothing else.
+
+<br>
 
 ## What a good change looks like
 
@@ -28,12 +32,16 @@ SDK.
 **Detector codes are the public interface.** Renaming one is a breaking change, so it
 lands as a minor bump with a changelog entry, not quietly.
 
+<br>
+
 ## Tuning vs mechanism
 
 The line this project is organised around: detectors are mechanism and live in code;
 thresholds, tool-name conventions and claim vocabulary are tuning and live in `Config`.
 If a change makes postflight know something about *your* domain, it probably belongs in
 your `Config`, not in here. Say so in the PR if you think it's the exception.
+
+<br>
 
 ## Before you open a PR
 
@@ -45,6 +53,8 @@ your `Config`, not in here. Say so in the PR if you think it's the exception.
   generated from merged PRs at tag time
 
 Issues and PRs are welcome. There is no response SLA.
+
+<br>
 
 ## Releasing
 

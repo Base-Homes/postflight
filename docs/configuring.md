@@ -3,6 +3,8 @@
 The detectors are mechanism. The vocabulary, the thresholds and the surface names
 are yours, and they live here. Read this when you adopt, not before.
 
+<br>
+
 ## Writing an adapter
 
 The `Turn` contract is in the [README](../README.md#the-turn-contract). Three notes on
@@ -20,6 +22,8 @@ filling it in, each of which cost something to learn:
 
 Adapters must not add a dependency. Parse exported JSON rather than importing a vendor
 SDK: the producer needs it, the reader does not.
+
+<br>
 
 ## Tuning it to your agent
 
@@ -164,6 +168,8 @@ Matching reads the clause the match sits in, and skips it on two conditions:
 
 Both are `Config` regexes (`negation`, `third_party_subject`) if your replies read
 differently.
+
+<br>
 
 ## Two design rules worth knowing before you extend it
 

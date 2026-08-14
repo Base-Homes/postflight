@@ -5,20 +5,26 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/postflight)](https://pypi.org/project/postflight/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-**Turn-level failure detection for tool-calling agents.**
+### Turn-level failure detection for tool-calling agents
 
 postflight reads agent traces you already emit and returns coded findings for failures
 that span a whole turn: a tool that declined three steps before the reply contradicting
 it, the same read issued eight times, a cache that never warmed. It calls no model and
 has no dependencies.
 
+<br>
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/turn-scope-dark.svg">
   <img alt="One turn of four steps: a generation that plans, a search tool, a notification tool returning {&quot;sent&quot;: false}, and a reply saying &quot;I've let them know.&quot; A bracket labelled UNVERIFIED_CLAIM spans the last two. Below, each step is scored on its own and every one passes." src="docs/img/turn-scope-light.svg">
 </picture>
 
+<br>
+
 The failure is a relationship between steps. Scored one at a time, which is what an
 observation-scoped evaluator does, every step here passes.
+
+<br>
 
 ## The taxonomy
 
@@ -46,6 +52,8 @@ cannot tell a silent channel from a batch job that returns a document.
 
 [^3]: Never fires until you set `quiet_kinds`. Nothing is a gate by default.
 
+<br>
+
 ## Install
 
 ```bash
@@ -53,6 +61,8 @@ pip install postflight
 ```
 
 No dependencies. Python 3.11+.
+
+<br>
 
 ## Use
 
@@ -80,6 +90,8 @@ for turn_id, findings in run_all(turns, Config()).items():
 
 `run_all` returns every finding, including `Severity.INFO` ones like `GATE_FILTERED`.
 Wrap it in `faults()` for anything a human reads first.
+
+<br>
 
 ## Output
 
@@ -113,6 +125,8 @@ have fired on this data, so a zero elsewhere means something.
 Expect `SLOW_TURN` and `GATE_FILTERED` to dominate any real window and expect the rare
 rows to carry the weight. Sort by severity, not by count.
 
+<br>
+
 ## The `Turn` contract
 
 Detectors never see your trace format. They read `Turn`, so an adapter is a function
@@ -143,10 +157,14 @@ timestamp encodings, so most of the awkward cases are already worked out. Read
 [writing an adapter](docs/configuring.md#writing-an-adapter) first; its three notes
 are each a mistake already made once.
 
+<br>
+
 ## Configuring
 
 Thresholds, claim vocabulary, which surfaces owe a reply, and what each detector needs
 in order to fire at all: **[docs/configuring.md](docs/configuring.md)**.
+
+<br>
 
 ## Status
 
