@@ -7,7 +7,7 @@ that took down the whole batch rather than one turn, because `turns()` builds ea
 from datetime import UTC
 
 from postflight import Config, run
-from postflight.adapters.langfuse import LangfuseAdapter, text_of
+from postflight.adapters.langfuse import LangfuseAdapter, LangfuseClient, text_of
 
 ADAPTER = LangfuseAdapter()
 
@@ -136,6 +136,30 @@ def test_first_non_empty_user_id_wins():
         "t", [span(name="a.turn", userId=""), span(name="tool.x", userId="u1")]
     )
     assert built.user_id == "u1"
+
+
+def test_paging_stops_when_the_cursor_stops_advancing():
+    """A repeated cursor means the same page again, not a next one.
+
+    Pages past the last one raise, so a client that keeps walking fails loudly here
+    instead of looping until the suite is killed.
+    """
+    pages = [
+        {"data": [span(name="a.turn")], "meta": {"cursor": "same"}},
+        {"data": [span(name="b.turn")], "meta": {"cursor": "same"}},
+    ]
+    asked: list[str] = []
+
+    class Client(LangfuseClient):
+        def get(self, path, retries=5):
+            asked.append(path)
+            return pages[len(asked) - 1]  # IndexError past the last page
+
+    rows = Client("https://h", "pk", "sk").observations(hours=1)
+
+    assert len(asked) == 2
+    assert len(rows) == 2
+    assert "cursor=same" in asked[1]
 
 
 def test_text_of_handles_the_three_output_shapes():
