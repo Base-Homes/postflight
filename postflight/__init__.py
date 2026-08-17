@@ -25,7 +25,7 @@ from .detectors import (
 )
 from .model import Finding, Generation, Outcome, Severity, Step, ToolCall, Turn
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "DETECTORS",
