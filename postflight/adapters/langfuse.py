@@ -273,6 +273,10 @@ class LangfuseClient:
             pages += 1
             if on_page:
                 on_page(pages, len(rows))
-            cursor = (data.get("meta") or {}).get("cursor")
-            if not cursor:
+            nxt = (data.get("meta") or {}).get("cursor")
+            # A cursor that echoes the one just sent is not a next page — it is the
+            # same page again. Ending on falsy alone turns that into an unbounded
+            # loop that grows `rows` forever and never reports anything.
+            if not nxt or nxt == cursor:
                 return rows
+            cursor = nxt
