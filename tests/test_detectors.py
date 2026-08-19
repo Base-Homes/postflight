@@ -389,10 +389,10 @@ def test_quiet_kind_that_did_work_and_said_nothing_is_a_fault():
     assert "EMPTY_REPLY" in codes(found)
 
 
-def test_silent_work_kind_that_acted_is_info_not_a_fault():
-    """On a surface declared silent-work, acting and saying nothing is the SUCCESSFUL
+def test_reply_optional_kind_that_acted_is_info_not_a_fault():
+    """On a surface declared reply-optional, acting and saying nothing is the SUCCESSFUL
     outcome, not a degenerate one."""
-    cfg = Config(silent_work_kinds=frozenset({"group.turn"}))
+    cfg = Config(reply_optional_kinds=frozenset({"group.turn"}))
     found = run(
         turn(tool("create_record", result={"ok": True}), gen(""), kind="group.turn"),
         cfg,
@@ -402,25 +402,25 @@ def test_silent_work_kind_that_acted_is_info_not_a_fault():
     assert faults(found) == []
 
 
-def test_silent_work_kind_with_no_work_still_reports_gate_filtered():
+def test_reply_optional_kind_with_no_work_still_reports_gate_filtered():
     """The two states are different observations about the same surface — collapsing
     them loses the health signal for a gate that has started swallowing real traffic."""
     cfg = Config(
-        silent_work_kinds=frozenset({"group.turn"}),
+        reply_optional_kinds=frozenset({"group.turn"}),
         quiet_kinds=frozenset({"group.turn"}),
     )
     assert codes(run(turn(gen(""), kind="group.turn"), cfg)) == {"GATE_FILTERED"}
 
 
-def test_declaring_a_silent_work_kind_never_adds_a_fault():
-    """The no-work case on a silent-work surface is not a fault either. Making the
-    declaration produce one would punish the config that quietens the noise."""
+def test_declaring_a_reply_optional_kind_never_adds_a_fault():
+    """A kind nobody declared conversational stays unreported after the declaration.
+    Making it produce a fault would punish the config that quietens the noise."""
     turn_ = turn(gen(""), kind="bg.turn")
     cfg = Config(conversational_kinds=frozenset({"chat.turn"}))
     assert codes(run(turn_, cfg)) == set()
     declared = Config(
         conversational_kinds=frozenset({"chat.turn"}),
-        silent_work_kinds=frozenset({"bg.turn"}),
+        reply_optional_kinds=frozenset({"bg.turn"}),
     )
     assert faults(run(turn_, declared)) == []
 
@@ -430,7 +430,7 @@ def test_an_undeclared_kind_that_acted_and_said_nothing_is_still_a_fault():
     a waiting person got nothing back."""
     cfg = Config(
         conversational_kinds=frozenset({"chat.turn"}),
-        silent_work_kinds=frozenset({"group.turn"}),
+        reply_optional_kinds=frozenset({"group.turn"}),
     )
     found = run(
         turn(tool("create_record", result={"ok": True}), gen(""), kind="chat.turn"), cfg
@@ -439,15 +439,24 @@ def test_an_undeclared_kind_that_acted_and_said_nothing_is_still_a_fault():
     assert found[0].severity is Severity.FAULT
 
 
-def test_a_kind_cannot_be_both_silent_work_and_conversational():
-    with pytest.raises(ValueError, match="silent_work_kinds and conversational_kinds"):
-        Config(
-            conversational_kinds=frozenset({"group.turn"}),
-            silent_work_kinds=frozenset({"group.turn"}),
-        )
+def test_a_kind_can_be_both_reply_optional_and_conversational():
+    """Not a contradiction: a shared channel holds people who sometimes get an answer
+    AND lets the agent act without broadcasting. The two declarations govern different
+    turns on it."""
+    cfg = Config(
+        conversational_kinds=frozenset({"group.turn"}),
+        reply_optional_kinds=frozenset({"group.turn"}),
+    )
+    acted = turn(tool("create_record", result={"ok": True}), gen(""), kind="group.turn")
+    assert codes(run(acted, cfg)) == {"ACTED_SILENTLY"}
+    assert faults(run(acted, cfg)) == []
+    # Nothing done and nothing said is still the bug, because somebody was there.
+    idle = run(turn(gen(""), kind="group.turn"), cfg)
+    assert codes(idle) == {"EMPTY_REPLY"}
+    assert idle[0].severity is Severity.FAULT
 
 
-def test_silent_work_kinds_unset_changes_nothing():
+def test_reply_optional_kinds_unset_changes_nothing():
     """The default-off guard: every existing path scores exactly as it did before."""
     cfg = Config(conversational_kinds=frozenset({"chat.turn"}))
     worked = turn(tool("create_record", result={"ok": True}), gen(""))

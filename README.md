@@ -56,8 +56,9 @@ cannot tell a silent channel from a batch job that returns a document.
 
 [^4]: Never fires until you set `quiet_kinds`. Nothing is a gate by default.
 
-[^5]: Never fires until you set `silent_work_kinds`. Without it, work-then-silence is
-an `EMPTY_REPLY` everywhere.
+[^5]: Never fires until you set `reply_optional_kinds`. Without it, work-then-silence is
+an `EMPTY_REPLY` everywhere. A kind can be both this and `conversational_kinds`: the
+two govern different turns on the same surface.
 
 <br>
 
@@ -114,7 +115,7 @@ $ python -m postflight --otel tests/fixtures/openinference_support_turn.jsonl
 
 Not all detectors are live on this data:
   GATE_FILTERED: INERT - no quiet_kinds configured, so nothing is silent by design
-  ACTED_SILENTLY: INERT - no silent_work_kinds configured, so acting without replying is scored as EMPTY_REPLY everywhere
+  ACTED_SILENTLY: INERT - no reply_optional_kinds configured, so acting without replying is scored as EMPTY_REPLY everywhere
   NO_CACHE_HIT: INERT - no generation reports cache usage, and unknown is not treated as zero
 ```
 

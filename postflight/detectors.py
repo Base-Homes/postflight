@@ -321,25 +321,38 @@ def detect_no_cache_hit(turn: Turn, cfg: Config) -> Iterator[Finding]:
 def detect_empty_reply(turn: Turn, cfg: Config) -> Iterator[Finding]:
     """A turn that produced no text where somebody was owed one.
 
-    Two declarations carve out designed silence, and they describe different surfaces.
+    Two declarations carve out designed silence, and they answer different questions.
 
-    A `quiet_kind` sits behind a relevance gate that drops most traffic. Silence there
-    WITHOUT work is the gate working, and reports as GATE_FILTERED at INFO so the count
-    stays visible for a gate that has started swallowing real traffic. Silence AFTER
-    work is not: the gate passed it, the agent acted, and nobody got an answer.
+    `reply_optional_kinds` answers "is acting without answering a designed outcome
+    here?" — that turn reports as ACTED_SILENTLY at INFO. Checked before the
+    reply-expectation gate, so declaring the kind is the whole statement; it need not
+    also be listed as conversational, and often is, since a surface can hold people who
+    sometimes get an answer and still let the agent act without broadcasting.
 
-    A `silent_work_kind` decides whether to act and whether to answer separately, so
-    work-then-silence is a success there and reports as ACTED_SILENTLY at INFO. Counted
-    rather than dropped, because a surface where it stops happening is worth seeing.
+    `quiet_kinds` answers "does a relevance gate drop most traffic here?" — silence
+    WITHOUT work is that gate working and reports as GATE_FILTERED at INFO, keeping the
+    count visible for a gate that has started swallowing real traffic.
 
-    Everywhere else work-then-silence stays a fault: tools ran and a waiting person got
-    nothing back is the bug this detector exists for.
+    Everything left is a fault: tools ran, or a gate passed a turn, and a waiting person
+    got nothing back.
     """
     if not turn.generations or turn.reply.strip():
         return
+    did_work = bool(turn.tool_calls) or len(turn.generations) > 1
+    if turn.kind in cfg.reply_optional_kinds and did_work:
+        yield Finding(
+            code="ACTED_SILENTLY",
+            turn_id=turn.id,
+            severity=Severity.INFO,
+            message="acted without replying — declared reply-optional surface",
+            detail={
+                "tool_calls": len(turn.tool_calls),
+                "generations": len(turn.generations),
+            },
+        )
+        return
     if not cfg.owes_reply(turn.kind):
         return
-    did_work = bool(turn.tool_calls) or len(turn.generations) > 1
     if turn.kind in cfg.quiet_kinds and not did_work:
         yield Finding(
             code="GATE_FILTERED",
@@ -347,22 +360,6 @@ def detect_empty_reply(turn: Turn, cfg: Config) -> Iterator[Finding]:
             severity=Severity.INFO,
             message="silent by design — gate dropped the turn without work",
         )
-        return
-    if turn.kind in cfg.silent_work_kinds:
-        # Both silent outcomes on this surface are declared healthy, so neither can be
-        # a fault. Only the one that acted is worth a row; the other is a turn where
-        # nothing happened, which GATE_FILTERED covers where a gate is also declared.
-        if did_work:
-            yield Finding(
-                code="ACTED_SILENTLY",
-                turn_id=turn.id,
-                severity=Severity.INFO,
-                message="acted without replying — declared silent-work surface",
-                detail={
-                    "tool_calls": len(turn.tool_calls),
-                    "generations": len(turn.generations),
-                },
-            )
         return
     yield Finding(
         code="EMPTY_REPLY",

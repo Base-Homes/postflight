@@ -187,10 +187,10 @@ def coverage(turns: Iterable[Turn], cfg: Config | None = None) -> list[Coverage]
     rows.append(
         Coverage(
             "ACTED_SILENTLY",
-            bool(cfg.silent_work_kinds),
-            "silent_work_kinds configured"
-            if cfg.silent_work_kinds
-            else "no silent_work_kinds configured, so acting without replying is "
+            bool(cfg.reply_optional_kinds),
+            "reply_optional_kinds configured"
+            if cfg.reply_optional_kinds
+            else "no reply_optional_kinds configured, so acting without replying is "
             "scored as EMPTY_REPLY everywhere",
         )
     )

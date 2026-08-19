@@ -230,15 +230,18 @@ class Config:
     # nothing: the gate passed it, the agent acted, and nobody got an answer. Otherwise
     # it reports as GATE_FILTERED, which is INFO, not a fault.
     quiet_kinds: frozenset[str] = frozenset()
-    # Kinds that decide whether to ACT and whether to ANSWER separately, so acting
-    # without answering is a designed outcome. `quiet_kinds` cannot express this: it
+    # Kinds that decide whether to ACT and whether to ANSWER separately, so a turn that
+    # acts and says nothing is a designed outcome. `quiet_kinds` cannot express this: it
     # describes silence BEFORE anything happens and asserts that silence after work is
     # suspicious. Work-then-silence reports as ACTED_SILENTLY here and stays EMPTY_REPLY
     # everywhere else, so declare only the surface that genuinely acts without speaking.
     #
-    # Both are silence a HUMAN is not owed, so a kind here and in `conversational_kinds`
-    # states two opposite things and is rejected at construction.
-    silent_work_kinds: frozenset[str] = frozenset()
+    # Orthogonal to `conversational_kinds`, and a kind is often both: a shared channel
+    # has people in it who sometimes get an answer, AND lets the agent file work without
+    # broadcasting. This field governs the turns that DID work; conversational_kinds
+    # still governs the rest, so a turn here that did nothing and said nothing stays an
+    # EMPTY_REPLY.
+    reply_optional_kinds: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         unsatisfiable = [
@@ -251,25 +254,13 @@ class Config:
                 "claim rules with no satisfying tool would flag every match: "
                 + ", ".join(unsatisfiable)
             )
-        contradictory = self.silent_work_kinds & self.conversational_kinds
-        if contradictory:
-            raise ValueError(
-                "kinds cannot be both silent_work_kinds and conversational_kinds — "
-                "one says acting without replying is by design, the other says a reply "
-                "is always owed: " + ", ".join(sorted(contradictory))
-            )
 
     @property
     def reply_expectation_configured(self) -> bool:
         return bool(self.conversational_kinds)
 
     def owes_reply(self, kind: str) -> bool:
-        """A quiet or silent-work kind ALWAYS reaches the reply detector.
-
-        Not because it owes a human anything, but because returning early suppresses
-        GATE_FILTERED and ACTED_SILENTLY along with EMPTY_REPLY, and those two are the
-        whole reason to declare the kind. Which of the three a turn gets is
-        `detect_empty_reply`'s decision, not this one's.
+        """A quiet kind ALWAYS owes a reply.
 
         `quiet_kinds` describes a conversational surface sitting behind a relevance
         gate, so listing one without also listing it in `conversational_kinds` used to
@@ -278,7 +269,7 @@ class Config:
         emitted. Nothing said the config was inert. Treat the declaration as the
         statement it obviously is instead of requiring it twice.
         """
-        if kind in self.quiet_kinds or kind in self.silent_work_kinds:
+        if kind in self.quiet_kinds:
             return True
         return not self.conversational_kinds or kind in self.conversational_kinds
 

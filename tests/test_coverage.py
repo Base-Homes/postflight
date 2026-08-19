@@ -50,7 +50,7 @@ def test_a_fully_wired_setup_reports_everything_live():
     cfg = Config(
         conversational_kinds=frozenset({"chat.turn"}),
         quiet_kinds=frozenset({"group.turn"}),
-        silent_work_kinds=frozenset({"group.turn"}),
+        reply_optional_kinds=frozenset({"group.turn"}),
     )
     assert all(r.live and not r.misleading for r in coverage([wired()], cfg))
 
@@ -210,6 +210,6 @@ def test_unmapped_tool_arguments_make_repeated_tool_misleading():
 @pytest.mark.parametrize(
     "configured,live", [(frozenset({"group.turn"}), True), (frozenset(), False)]
 )
-def test_acted_silently_needs_silent_work_kinds(configured, live):
-    got = rows([wired()], Config(silent_work_kinds=configured))["ACTED_SILENTLY"]
+def test_acted_silently_needs_reply_optional_kinds(configured, live):
+    got = rows([wired()], Config(reply_optional_kinds=configured))["ACTED_SILENTLY"]
     assert got.live is live
