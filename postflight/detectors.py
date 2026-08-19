@@ -146,23 +146,112 @@ def detect_unverified_claim(turn: Turn, cfg: Config) -> Iterator[Finding]:
         )
 
 
+def _canonical(value: Any) -> Any:
+    """Hashable, key-order-insensitive form of an argument or result payload.
+
+    Dict key order is a serialisation artifact, so two calls differing only in key
+    order have to produce the same key. Sorts on the key alone: sorting on the pair
+    compares canonicalised values whenever two keys tie, and those are not always
+    mutually comparable.
+    """
+    if isinstance(value, dict):
+        return tuple(
+            sorted(
+                ((str(k), _canonical(v)) for k, v in value.items()),
+                key=lambda kv: kv[0],
+            )
+        )
+    if isinstance(value, (list, tuple)):
+        return tuple(_canonical(v) for v in value)
+    if isinstance(value, (set, frozenset)):
+        return tuple(sorted(repr(_canonical(v)) for v in value))
+    try:
+        hash(value)
+    except TypeError:
+        return repr(value)
+    return value
+
+
+def _is_empty(result: Any) -> bool:
+    """True for every shape of nothing: None, or an empty string or container."""
+    if result is None:
+        return True
+    if isinstance(result, str):
+        return not result.strip()
+    if isinstance(result, (bytes, list, tuple, dict, set, frozenset)):
+        return len(result) == 0
+    return False
+
+
+def _argument_key(call: ToolCall) -> Any:
+    """The grouping key for one call's arguments.
+
+    `arguments is None` means the adapter maps none, not that the call had none. Every
+    call of a tool then shares one key, which is name-only keying: the detector degrades
+    to what it did before rather than going silent.
+    """
+    return None if call.arguments is None else _canonical(call.arguments)
+
+
+def _worth_nothing(call: ToolCall, cfg: Config) -> bool:
+    """True when a call yielded no payload: it errored, declined, or came back empty."""
+    return tool_outcome(call, cfg) is not Outcome.OK or _is_empty(call.result)
+
+
+# `{}`, `[]`, `""` and `None` are one answer in different clothes, so they share a key.
+_NOTHING = object()
+
+
+def _result_key(result: Any) -> Any:
+    return _NOTHING if _is_empty(result) else _canonical(result)
+
+
 def detect_repeated_tool(turn: Turn, cfg: Config) -> Iterator[Finding]:
-    """The same tool called N+ times in one turn.
+    """The same tool called N+ times for the same thing.
 
     Usually the model searching for an argument it was never given — a context gap,
     not a model failure. Fix the prompt, not the temperature.
+
+    Two keys, because a name-only count cannot separate a thrash from fan-out over N
+    ids the input supplied.
+
+    `arguments` groups calls that asked for the same thing, falling back to name-only
+    where the adapter maps no arguments.
+
+    `results` groups calls that got the same nothing, whatever they asked for: a thrash
+    usually varies one id per attempt, so arguments alone would miss it. Restricted to
+    calls that errored, declined or came back empty, because N identical success bodies
+    are a bulk write rather than a thrash. The cost of that arm is N searches in one
+    turn that legitimately found nothing, which reads the same from a trace.
     """
-    repeats = {
-        name: count
-        for name, count in Counter(c.name for c in turn.tool_calls).items()
-        if count >= cfg.repeated_tool
-    }
+    calls = turn.tool_calls
+    if not calls:
+        return
+
+    repeats: dict[str, int] = {}
+    basis: dict[str, list[str]] = {}
+
+    def record(name: str, count: int, why: str) -> None:
+        repeats[name] = max(repeats.get(name, 0), count)
+        if why not in basis.setdefault(name, []):
+            basis[name].append(why)
+
+    for (name, _), count in Counter((c.name, _argument_key(c)) for c in calls).items():
+        if count >= cfg.repeated_tool:
+            record(name, count, "arguments")
+
+    for (name, _), count in Counter(
+        (c.name, _result_key(c.result)) for c in calls if _worth_nothing(c, cfg)
+    ).items():
+        if count >= cfg.repeated_tool:
+            record(name, count, "results")
+
     if repeats:
         yield Finding(
             code="REPEATED_TOOL",
             turn_id=turn.id,
             message=f"repeated calls: {repeats}",
-            detail={"repeats": repeats},
+            detail={"repeats": repeats, "basis": basis},
         )
 
 
@@ -232,18 +321,40 @@ def detect_no_cache_hit(turn: Turn, cfg: Config) -> Iterator[Finding]:
 def detect_empty_reply(turn: Turn, cfg: Config) -> Iterator[Finding]:
     """A turn that produced no text where somebody was owed one.
 
-    On a `quiet_kind` — a surface fronted by a relevance gate — silence is the product
-    working, and flagging it drowns the one class this detector exists for, because
-    most traffic there is dropped. A quiet kind is only suspicious when the gate PASSED it
-    and the agent did work: tools ran, or the loop went more than one generation, and
-    then the room got nothing. Otherwise it reports as GATE_FILTERED at INFO, so the
-    count stays visible for a gate that has started swallowing real traffic.
+    Two declarations carve out designed silence, and they answer different questions.
+
+    `act_only_kinds` answers "is acting without answering a designed outcome here?" —
+    that turn, and only that turn, reports as ACTED_SILENTLY at INFO. Checked before the
+    reply-expectation gate, so declaring the kind is the whole statement; it need not
+    also be listed as conversational, and often is, since a surface can hold people who
+    sometimes get an answer and still let the agent act without broadcasting. A turn on
+    such a kind that did NO work falls through to the rules below, because the
+    declaration covers acting quietly, not being idle.
+
+    `quiet_kinds` answers "does a relevance gate drop most traffic here?" — silence
+    WITHOUT work is that gate working and reports as GATE_FILTERED at INFO, keeping the
+    count visible for a gate that has started swallowing real traffic.
+
+    Everything left is a fault: tools ran, or a gate passed a turn, and a waiting person
+    got nothing back.
     """
     if not turn.generations or turn.reply.strip():
         return
+    did_work = bool(turn.tool_calls) or len(turn.generations) > 1
+    if turn.kind in cfg.act_only_kinds and did_work:
+        yield Finding(
+            code="ACTED_SILENTLY",
+            turn_id=turn.id,
+            severity=Severity.INFO,
+            message="acted without replying — declared act-only surface",
+            detail={
+                "tool_calls": len(turn.tool_calls),
+                "generations": len(turn.generations),
+            },
+        )
+        return
     if not cfg.owes_reply(turn.kind):
         return
-    did_work = bool(turn.tool_calls) or len(turn.generations) > 1
     if turn.kind in cfg.quiet_kinds and not did_work:
         yield Finding(
             code="GATE_FILTERED",

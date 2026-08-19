@@ -6,5 +6,9 @@ dist/
 build/
 .venv/
 
+# A lockfile for a package with no dependencies pins nothing, and running the tests
+# through uv regenerates it.
+uv.lock
+
 # The diagram generator is kept locally, not checked in.
 docs/img/generate.py

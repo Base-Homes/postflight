@@ -125,8 +125,28 @@ def coverage(turns: Iterable[Turn], cfg: Config | None = None) -> list[Coverage]
                     "tools signal failure another way, add a refusal_predicate",
                 )
             )
-        for code in ("REPEATED_TOOL", "TOOL_STORM"):
-            rows.append(Coverage(code, True, f"{len(tool_calls)} tool call(s) visible"))
+        rows.append(
+            Coverage("TOOL_STORM", True, f"{len(tool_calls)} tool call(s) visible")
+        )
+        if any(c.arguments is not None for c in tool_calls):
+            rows.append(
+                Coverage(
+                    "REPEATED_TOOL",
+                    True,
+                    f"{len(tool_calls)} tool call(s) visible, with arguments to key on",
+                )
+            )
+        else:
+            rows.append(
+                Coverage(
+                    "REPEATED_TOOL",
+                    True,
+                    "no tool call carries arguments, so repeats can only be keyed on "
+                    "tool NAME, and correct fan-out over several ids reads as "
+                    "thrashing. Check the adapter maps tool input",
+                    misleading=True,
+                )
+            )
 
     # --- EMPTY_REPLY / GATE_FILTERED -----------------------------------------------
     if not generations:
@@ -162,6 +182,16 @@ def coverage(turns: Iterable[Turn], cfg: Config | None = None) -> list[Coverage]
             "quiet_kinds configured"
             if cfg.quiet_kinds
             else "no quiet_kinds configured, so nothing is silent by design",
+        )
+    )
+    rows.append(
+        Coverage(
+            "ACTED_SILENTLY",
+            bool(cfg.act_only_kinds),
+            "act_only_kinds configured"
+            if cfg.act_only_kinds
+            else "no act_only_kinds configured, so acting without replying is "
+            "scored as EMPTY_REPLY everywhere",
         )
     )
 

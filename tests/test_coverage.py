@@ -30,7 +30,11 @@ def wired(**kw):
                 cache_read_tokens=0,
                 model="claude-haiku-4-5",
             ),
-            ToolCall(name="send_email", result={"sent": True}),
+            ToolCall(
+                name="send_email",
+                arguments={"to": "a@example.com"},
+                result={"sent": True},
+            ),
         ),
     )
     return Turn(
@@ -46,6 +50,7 @@ def test_a_fully_wired_setup_reports_everything_live():
     cfg = Config(
         conversational_kinds=frozenset({"chat.turn"}),
         quiet_kinds=frozenset({"group.turn"}),
+        act_only_kinds=frozenset({"group.turn"}),
     )
     assert all(r.live and not r.misleading for r in coverage([wired()], cfg))
 
@@ -184,3 +189,27 @@ def test_custom_rules_are_matched_against_your_own_tool_names():
 )
 def test_gate_filtered_needs_quiet_kinds(configured, live):
     assert rows([wired()], Config(quiet_kinds=configured))["GATE_FILTERED"].live is live
+
+
+def test_unmapped_tool_arguments_make_repeated_tool_misleading():
+    """Without arguments the detector can only key on tool NAME, and correct fan-out
+    over several ids reads as thrashing — louder than inertness, and just as wrong."""
+    got = rows(
+        [
+            wired(
+                steps=(
+                    Generation(text="hi", input_tokens=10),
+                    ToolCall(name="get_thing", result={"ok": True}),
+                )
+            )
+        ]
+    )
+    assert got["REPEATED_TOOL"].live and got["REPEATED_TOOL"].misleading
+
+
+@pytest.mark.parametrize(
+    "configured,live", [(frozenset({"group.turn"}), True), (frozenset(), False)]
+)
+def test_acted_silently_needs_act_only_kinds(configured, live):
+    got = rows([wired()], Config(act_only_kinds=configured))["ACTED_SILENTLY"]
+    assert got.live is live
