@@ -40,13 +40,19 @@ Config(
     # Surfaces that owe a human a reply. Setting this is what promotes EMPTY_REPLY from
     # INFO to a fault. Leave it empty and postflight cannot tell a silent channel from
     # a batch job that returns a document, so it counts them instead of blaming them.
-    conversational_kinds=frozenset({"chat.turn", "inbound.turn", "group.turn"}),
+    conversational_kinds=frozenset({"chat.turn", "inbound.turn"}),
     # Surfaces that narrate rather than speak. A digest summarising someone's history
     # uses the same words a claim does, with no user and no write in the turn.
     narrating_kinds=frozenset({"digest.turn"}),
     # Surfaces fronted by a relevance gate, where silence is correct. A quiet kind is
     # conversational by definition, so you need not list it in both.
     quiet_kinds=frozenset({"group.turn"}),
+    # Surfaces where DOING THE WORK AND SAYING NOTHING is the designed outcome, not a
+    # degenerate one, because "is there work here" and "does anyone need an answer" are
+    # separate decisions. Work-then-silence reports as ACTED_SILENTLY at INFO there, and
+    # stays an EMPTY_REPLY everywhere else. A kind cannot be both this and
+    # conversational; that pair is rejected at construction.
+    silent_work_kinds=frozenset({"group.turn"}),
 )
 ```
 
@@ -113,11 +119,12 @@ clean agent.
 | detector | goes quiet if | goes *wrong* if |
 |---|---|---|
 | `UNVERIFIED_CLAIM` | the adapter supplies no reply text, or your replies are not in the vocabulary `claim_rules` knows (they are English by default) | your tool names don't match `satisfied_by` / `satisfied_by_prefix`, and a genuine action then reads as an unbacked claim |
-| `TOOL_ERROR` · `TOOL_REFUSAL` · `REPEATED_TOOL` · `TOOL_STORM` | the adapter maps no tool spans | |
+| `TOOL_ERROR` · `TOOL_REFUSAL` · `REPEATED_TOOL` · `TOOL_STORM` | the adapter maps no tool spans | `REPEATED_TOOL` only: the adapter maps no tool *arguments*, so repeats fall back to keying on tool name and correct fan-out over several ids reads as thrashing |
 | `SLOW_TURN` | the adapter supplies no timestamps | |
 | `NO_CACHE_HIT` | no token counts, or the producer reports no cache usage | |
 | `EMPTY_REPLY` | there are no generations | the adapter fails to extract reply text, and it then fires on **every** turn |
 | `GATE_FILTERED` | `quiet_kinds` is unset (the default) | |
+| `ACTED_SILENTLY` | `silent_work_kinds` is unset (the default) | |
 
 Note the coupling: a broken reply mapping silences `UNVERIFIED_CLAIM` *and* makes
 `EMPTY_REPLY` fire on everything. One wrong field, two wrong columns, in opposite
@@ -180,7 +187,7 @@ real turns, and every future surface until someone remembers to edit the set. A 
 narrating surface going unflagged is a false positive; a new conversational surface
 going unflagged is a missed lie.
 
-**Report on faults, not on findings.** `GATE_FILTERED` is `Severity.INFO` because it
-fires on correct behaviour. Counting it as a fault makes the headline cry wolf, and a
+**Report on faults, not on findings.** `GATE_FILTERED` and `ACTED_SILENTLY` are
+`Severity.INFO` because they fire on correct behaviour. Counting it as a fault makes the headline cry wolf, and a
 detector that cries wolf on the healthy case is how the real rows get ignored. Use
 `faults()` for anything a human reads first.

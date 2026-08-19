@@ -187,6 +187,99 @@ def test_repeated_and_storm():
     assert {"REPEATED_TOOL", "TOOL_STORM"} <= codes(found)
 
 
+def test_fan_out_over_distinct_ids_is_not_a_repeat():
+    """The healthy case the name-only Counter could not see: one tool, N ids the input
+    named, N different bodies back. That is the model doing what it was told."""
+    found = run(
+        turn(
+            *[
+                tool(
+                    "get_record",
+                    arguments={"record_id": i},
+                    result={"id": i, "status": "open"},
+                )
+                for i in (30, 32, 24, 35)
+            ],
+            gen("four records"),
+        )
+    )
+    assert "REPEATED_TOOL" not in codes(found)
+
+
+def test_distinct_arguments_returning_the_same_nothing_still_repeats():
+    """The trap in argument-keying: a real thrash varies one id every attempt. What
+    separates it from fan-out is that every attempt comes back with the same nothing."""
+    found = run(
+        turn(
+            *[
+                tool("get_record", arguments={"record_id": n}, result={})
+                for n in (1, 2, 3)
+            ],
+            gen("could not find it"),
+        )
+    )
+    assert "REPEATED_TOOL" in codes(found)
+    assert next(f for f in found if f.code == "REPEATED_TOOL").detail["basis"] == {
+        "get_record": ["results"]
+    }
+
+
+def test_distinct_arguments_each_succeeding_identically_is_not_a_repeat():
+    """A bulk write returns the same `{"ok": true}` per row. Keying repeats on the
+    RESULT alone would eat exactly the fan-out this rule exists to stay clear of."""
+    found = run(
+        turn(
+            *[
+                tool(
+                    "update_record",
+                    arguments={"record_id": t},
+                    result={"ok": True},
+                )
+                for t in ("a", "b", "c", "d")
+            ],
+            gen("noted for all four"),
+        )
+    )
+    assert "REPEATED_TOOL" not in codes(found)
+
+
+def test_identical_arguments_still_repeat():
+    found = run(
+        turn(
+            *[
+                tool("search", arguments={"q": "thing"}, result={"hits": [1, 2]})
+                for _ in range(3)
+            ],
+            gen("done"),
+        )
+    )
+    assert "REPEATED_TOOL" in codes(found)
+
+
+def test_argument_key_order_does_not_make_calls_distinct():
+    found = run(
+        turn(
+            tool("search", arguments={"q": "thing", "limit": 5}, result={"hits": [1]}),
+            tool("search", arguments={"limit": 5, "q": "thing"}, result={"hits": [1]}),
+            tool("search", arguments={"q": "thing", "limit": 5}, result={"hits": [1]}),
+            gen("done"),
+        )
+    )
+    assert "REPEATED_TOOL" in codes(found)
+
+
+def test_unmapped_arguments_degrade_to_name_only_keying():
+    """An adapter that never populates arguments keeps the detector it had. Silently
+    losing it would look exactly like an agent that stopped thrashing."""
+    found = run(
+        turn(*[tool("search", result={"hits": [i]}) for i in range(3)], gen("done"))
+    )
+    assert "REPEATED_TOOL" in codes(found)
+    assert next(f for f in found if f.code == "REPEATED_TOOL").detail["basis"] == {
+        "search": ["arguments"]
+    }
+
+
 def test_slow_turn_uses_configured_threshold():
     slow = turn(gen("done"), seconds=45)
     assert "SLOW_TURN" not in codes(run(slow))
@@ -294,6 +387,72 @@ def test_quiet_kind_that_did_work_and_said_nothing_is_a_fault():
         turn(tool("get_thing", result={"ok": True}), gen(""), kind="group.turn"), cfg
     )
     assert "EMPTY_REPLY" in codes(found)
+
+
+def test_silent_work_kind_that_acted_is_info_not_a_fault():
+    """On a surface declared silent-work, acting and saying nothing is the SUCCESSFUL
+    outcome, not a degenerate one."""
+    cfg = Config(silent_work_kinds=frozenset({"group.turn"}))
+    found = run(
+        turn(tool("create_record", result={"ok": True}), gen(""), kind="group.turn"),
+        cfg,
+    )
+    assert codes(found) == {"ACTED_SILENTLY"}
+    assert found[0].severity is Severity.INFO
+    assert faults(found) == []
+
+
+def test_silent_work_kind_with_no_work_still_reports_gate_filtered():
+    """The two states are different observations about the same surface — collapsing
+    them loses the health signal for a gate that has started swallowing real traffic."""
+    cfg = Config(
+        silent_work_kinds=frozenset({"group.turn"}),
+        quiet_kinds=frozenset({"group.turn"}),
+    )
+    assert codes(run(turn(gen(""), kind="group.turn"), cfg)) == {"GATE_FILTERED"}
+
+
+def test_declaring_a_silent_work_kind_never_adds_a_fault():
+    """The no-work case on a silent-work surface is not a fault either. Making the
+    declaration produce one would punish the config that quietens the noise."""
+    turn_ = turn(gen(""), kind="bg.turn")
+    cfg = Config(conversational_kinds=frozenset({"chat.turn"}))
+    assert codes(run(turn_, cfg)) == set()
+    declared = Config(
+        conversational_kinds=frozenset({"chat.turn"}),
+        silent_work_kinds=frozenset({"bg.turn"}),
+    )
+    assert faults(run(turn_, declared)) == []
+
+
+def test_an_undeclared_kind_that_acted_and_said_nothing_is_still_a_fault():
+    """The bug the detector exists for has to survive the new declaration: tools ran and
+    a waiting person got nothing back."""
+    cfg = Config(
+        conversational_kinds=frozenset({"chat.turn"}),
+        silent_work_kinds=frozenset({"group.turn"}),
+    )
+    found = run(
+        turn(tool("create_record", result={"ok": True}), gen(""), kind="chat.turn"), cfg
+    )
+    assert codes(found) == {"EMPTY_REPLY"}
+    assert found[0].severity is Severity.FAULT
+
+
+def test_a_kind_cannot_be_both_silent_work_and_conversational():
+    with pytest.raises(ValueError, match="silent_work_kinds and conversational_kinds"):
+        Config(
+            conversational_kinds=frozenset({"group.turn"}),
+            silent_work_kinds=frozenset({"group.turn"}),
+        )
+
+
+def test_silent_work_kinds_unset_changes_nothing():
+    """The default-off guard: every existing path scores exactly as it did before."""
+    cfg = Config(conversational_kinds=frozenset({"chat.turn"}))
+    worked = turn(tool("create_record", result={"ok": True}), gen(""))
+    assert codes(run(worked, cfg)) == {"EMPTY_REPLY"}
+    assert run(worked, cfg)[0].severity is Severity.FAULT
 
 
 def test_non_conversational_kind_owes_nothing():

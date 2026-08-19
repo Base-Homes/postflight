@@ -33,10 +33,11 @@ observation-scoped evaluator does, every step here passes.
 | `UNVERIFIED_CLAIM` | The reply asserts a write no successful tool backs up. | The only one a user experiences as a lie. They were told something happened that did not happen. |
 | `TOOL_ERROR` | A tool raised; the framework wrapped it. | The visible half of tool failure, usually already in your dashboards. |
 | `TOOL_REFUSAL` [^1] | A tool ran fine and **declined in its own result body**, with no error flag. | The dangerous half. Every guard that asks "did the tool run" is satisfied, so a false confirmation ships. |
-| `REPEATED_TOOL` | The same tool called 3+ times in one turn. | The model is searching for an argument it was never given. A context gap, not a model failure. |
+| `REPEATED_TOOL` [^2] | The same tool called 3+ times **for the same thing**: same arguments, or the same nothing coming back. | The model is searching for an argument it was never given. A context gap, not a model failure. Calling one tool over several ids it was handed is fan-out, and does not count. |
 | `TOOL_STORM` | 8+ tool calls in one turn. | Same cause, worse. Cost and latency both. |
-| `EMPTY_REPLY` [^2] | No text where somebody was owed one. | On a 1:1 channel, the "it just didn't respond" bug. |
-| `GATE_FILTERED` [^3] | A turn a relevance gate dropped without doing work. | **Information, not a fault.** Silence is the design. Watch the count for a gate that has started swallowing real traffic. |
+| `EMPTY_REPLY` [^3] | No text where somebody was owed one. | On a 1:1 channel, the "it just didn't respond" bug. |
+| `GATE_FILTERED` [^4] | A turn a relevance gate dropped without doing work. | **Information, not a fault.** Silence is the design. Watch the count for a gate that has started swallowing real traffic. |
+| `ACTED_SILENTLY` [^5] | A turn that did the work and deliberately said nothing. | **Information, not a fault.** On some surfaces "is there work here" and "does anyone need an answer" are separate decisions. Counted rather than merely un-flagged, so the act-only path stays visible. |
 | `SLOW_TURN` | Wall clock over the threshold. | Usually a storm with a human waiting. |
 | `NO_CACHE_HIT` | A prompt big enough to cache that read nothing from cache. | Caching is a prefix match, so one volatile byte early in the system prompt drops the discount on *every* turn. |
 
@@ -47,10 +48,16 @@ one is a breaking change.
 success flag set to `false`. If your tools say no some other way, see
 [configuring](docs/configuring.md#what-tool_refusal-can-and-cannot-see).
 
-[^2]: Reports at `INFO` until you set `conversational_kinds`, since unconfigured it
+[^2]: Keyed on arguments where your adapter maps them, and on tool name alone where it
+does not. `coverage()` says which one you are getting.
+
+[^3]: Reports at `INFO` until you set `conversational_kinds`, since unconfigured it
 cannot tell a silent channel from a batch job that returns a document.
 
-[^3]: Never fires until you set `quiet_kinds`. Nothing is a gate by default.
+[^4]: Never fires until you set `quiet_kinds`. Nothing is a gate by default.
+
+[^5]: Never fires until you set `silent_work_kinds`. Without it, work-then-silence is
+an `EMPTY_REPLY` everywhere.
 
 <br>
 
@@ -107,6 +114,7 @@ $ python -m postflight --otel tests/fixtures/openinference_support_turn.jsonl
 
 Not all detectors are live on this data:
   GATE_FILTERED: INERT - no quiet_kinds configured, so nothing is silent by design
+  ACTED_SILENTLY: INERT - no silent_work_kinds configured, so acting without replying is scored as EMPTY_REPLY everywhere
   NO_CACHE_HIT: INERT - no generation reports cache usage, and unknown is not treated as zero
 ```
 
