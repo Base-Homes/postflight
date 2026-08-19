@@ -47,12 +47,13 @@ Config(
     # Surfaces fronted by a relevance gate, where silence is correct. A quiet kind is
     # conversational by definition, so you need not list it in both.
     quiet_kinds=frozenset({"group.turn"}),
-    # Surfaces where DOING THE WORK AND SAYING NOTHING is the designed outcome, because
+    # Surfaces where a turn that ACTS and says nothing is the designed outcome, because
     # "is there work here" and "does anyone need an answer" are separate decisions
-    # there. Work-then-silence reports as ACTED_SILENTLY at INFO on these and stays an
-    # EMPTY_REPLY everywhere else. Orthogonal to conversational_kinds, and a kind is
-    # often both: this one governs the turns that acted, that one governs the rest.
-    reply_optional_kinds=frozenset({"group.turn"}),
+    # there. Those turns report as ACTED_SILENTLY at INFO; work-then-silence stays an
+    # EMPTY_REPLY everywhere else. Covers acting quietly, not being idle, which is what
+    # keeps it orthogonal to conversational_kinds: a kind is often both, and a turn here
+    # that did nothing and said nothing is still that kind's EMPTY_REPLY.
+    act_only_kinds=frozenset({"group.turn"}),
 )
 ```
 
@@ -124,7 +125,7 @@ clean agent.
 | `NO_CACHE_HIT` | no token counts, or the producer reports no cache usage | |
 | `EMPTY_REPLY` | there are no generations | the adapter fails to extract reply text, and it then fires on **every** turn |
 | `GATE_FILTERED` | `quiet_kinds` is unset (the default) | |
-| `ACTED_SILENTLY` | `reply_optional_kinds` is unset (the default) | |
+| `ACTED_SILENTLY` | `act_only_kinds` is unset (the default) | |
 
 Note the coupling: a broken reply mapping silences `UNVERIFIED_CLAIM` *and* makes
 `EMPTY_REPLY` fire on everything. One wrong field, two wrong columns, in opposite

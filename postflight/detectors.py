@@ -323,11 +323,13 @@ def detect_empty_reply(turn: Turn, cfg: Config) -> Iterator[Finding]:
 
     Two declarations carve out designed silence, and they answer different questions.
 
-    `reply_optional_kinds` answers "is acting without answering a designed outcome
-    here?" — that turn reports as ACTED_SILENTLY at INFO. Checked before the
+    `act_only_kinds` answers "is acting without answering a designed outcome here?" —
+    that turn, and only that turn, reports as ACTED_SILENTLY at INFO. Checked before the
     reply-expectation gate, so declaring the kind is the whole statement; it need not
     also be listed as conversational, and often is, since a surface can hold people who
-    sometimes get an answer and still let the agent act without broadcasting.
+    sometimes get an answer and still let the agent act without broadcasting. A turn on
+    such a kind that did NO work falls through to the rules below, because the
+    declaration covers acting quietly, not being idle.
 
     `quiet_kinds` answers "does a relevance gate drop most traffic here?" — silence
     WITHOUT work is that gate working and reports as GATE_FILTERED at INFO, keeping the
@@ -339,12 +341,12 @@ def detect_empty_reply(turn: Turn, cfg: Config) -> Iterator[Finding]:
     if not turn.generations or turn.reply.strip():
         return
     did_work = bool(turn.tool_calls) or len(turn.generations) > 1
-    if turn.kind in cfg.reply_optional_kinds and did_work:
+    if turn.kind in cfg.act_only_kinds and did_work:
         yield Finding(
             code="ACTED_SILENTLY",
             turn_id=turn.id,
             severity=Severity.INFO,
-            message="acted without replying — declared reply-optional surface",
+            message="acted without replying — declared act-only surface",
             detail={
                 "tool_calls": len(turn.tool_calls),
                 "generations": len(turn.generations),

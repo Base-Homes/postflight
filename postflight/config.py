@@ -230,18 +230,16 @@ class Config:
     # nothing: the gate passed it, the agent acted, and nobody got an answer. Otherwise
     # it reports as GATE_FILTERED, which is INFO, not a fault.
     quiet_kinds: frozenset[str] = frozenset()
-    # Kinds that decide whether to ACT and whether to ANSWER separately, so a turn that
-    # acts and says nothing is a designed outcome. `quiet_kinds` cannot express this: it
-    # describes silence BEFORE anything happens and asserts that silence after work is
-    # suspicious. Work-then-silence reports as ACTED_SILENTLY here and stays EMPTY_REPLY
-    # everywhere else, so declare only the surface that genuinely acts without speaking.
+    # Kinds where a turn that ACTS and says nothing is a designed outcome, because
+    # "is there work here" and "does anyone need an answer" are separate decisions on
+    # the surface. Those turns report as ACTED_SILENTLY; everywhere else work-then-
+    # silence is an EMPTY_REPLY.
     #
-    # Orthogonal to `conversational_kinds`, and a kind is often both: a shared channel
-    # has people in it who sometimes get an answer, AND lets the agent file work without
-    # broadcasting. This field governs the turns that DID work; conversational_kinds
-    # still governs the rest, so a turn here that did nothing and said nothing stays an
-    # EMPTY_REPLY.
-    reply_optional_kinds: frozenset[str] = frozenset()
+    # Scoped to turns that DID work, which is what keeps it orthogonal to
+    # `conversational_kinds` — a kind is often both, and a turn here that did nothing
+    # and said nothing is still that kind's EMPTY_REPLY. `quiet_kinds` cannot express
+    # any of this: it describes silence BEFORE anything happens.
+    act_only_kinds: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         unsatisfiable = [
