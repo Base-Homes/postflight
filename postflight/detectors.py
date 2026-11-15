@@ -208,8 +208,56 @@ def _worth_nothing(call: ToolCall, cfg: Config) -> bool:
 _NOTHING = object()
 
 
-def _result_key(result: Any) -> Any:
-    return _NOTHING if _is_empty(result) else _canonical(result)
+# Shorter than this and an argument is as likely to be a fragment of the fixed text around
+# it ("id", "to") as a value the tool echoed back, and masking it would blur real differences.
+_MIN_MASKED_LEN = 3
+
+
+def _string_leaves(value: Any) -> Iterator[str]:
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for v in value.values():
+            yield from _string_leaves(v)
+    elif isinstance(value, (list, tuple, set, frozenset)):
+        for v in value:
+            yield from _string_leaves(v)
+
+
+def _mask(value: Any, needles: list[str]) -> Any:
+    """`value` with every needle replaced by a placeholder inside its strings."""
+    if isinstance(value, str):
+        for needle in needles:
+            value = value.replace(needle, "<arg>")
+        return value
+    if isinstance(value, dict):
+        return {k: _mask(v, needles) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_mask(v, needles) for v in value]
+    return value
+
+
+def _result_key(call: ToolCall) -> Any:
+    """The grouping key for what one call got back.
+
+    A call's own argument values are masked out of its result first. A tool that fails by
+    echoing what it was asked for ("no team member named 'Ada'", then "named 'Ada L'", then
+    "named 'ada@example.com'") returns a different string every attempt, so keying on the raw
+    result put each attempt in its own group and the detector went silent on the thrash this
+    arm exists for. Longest value first, so a name is masked whole rather than leaving the
+    tail of a longer one behind.
+    """
+    if _is_empty(call.result):
+        return _NOTHING
+    result = call.result
+    if call.arguments:
+        needles = sorted(
+            {v for v in _string_leaves(call.arguments) if len(v) >= _MIN_MASKED_LEN},
+            key=len,
+            reverse=True,
+        )
+        result = _mask(result, needles)
+    return _canonical(result)
 
 
 def detect_repeated_tool(turn: Turn, cfg: Config) -> Iterator[Finding]:
@@ -247,7 +295,7 @@ def detect_repeated_tool(turn: Turn, cfg: Config) -> Iterator[Finding]:
             record(name, count, "arguments")
 
     for (name, _), count in Counter(
-        (c.name, _result_key(c.result)) for c in calls if _worth_nothing(c, cfg)
+        (c.name, _result_key(c)) for c in calls if _worth_nothing(c, cfg)
     ).items():
         if count >= cfg.repeated_tool:
             record(name, count, "results")
