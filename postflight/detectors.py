@@ -25,10 +25,12 @@ Detector = Callable[[Turn, Config], Iterable[Finding]]
 def tool_outcome(call: ToolCall, cfg: Config) -> Outcome:
     """Did this call do the thing?
 
-    Three answers, not two. A tool that RAISED and a tool that ran fine and DECLINED are
-    different failures with different fixes, and the second is the dangerous one: every
-    guard keyed on "did the tool run" is satisfied by a decline, which is how a false
-    confirmation reaches a user.
+    Not two answers. A tool that RAISED and a tool that ran fine and DECLINED are different
+    failures with different fixes, and the second is the dangerous one: every guard keyed on
+    "did the tool run" is satisfied by a decline, which is how a false confirmation reaches
+    a user. A fourth answer, `HELD`, is a decline the tool made on purpose and asked the
+    caller to wait out (`Config.held_predicates`): neither a failure nor something that
+    happened, so it is excused from the error detectors and still does not back a claim.
 
     REFUSED is only detectable where the tool SAYS SO in a shape config knows about —
     a boolean success flag by default, plus whatever `refusal_predicates` adds. A tool
@@ -52,6 +54,10 @@ def tool_outcome(call: ToolCall, cfg: Config) -> Outcome:
     # shape excuses a tool that crashed.
     if any(exempt(result) for exempt in cfg.refusal_exemptions):
         return Outcome.OK
+    # Held, like an exemption, outranks the result's own `error` field: a hold usually
+    # explains itself there. It is not OK, so it never backs a claim.
+    if any(is_held(result) for is_held in cfg.held_predicates):
+        return Outcome.HELD
     if isinstance(result, dict) and result.get("error"):
         return Outcome.ERRORED
     if any(is_refusal(result) for is_refusal in cfg.refusal_predicates):

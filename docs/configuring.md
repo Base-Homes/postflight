@@ -113,6 +113,13 @@ your detection cannot silently re-flag a path you already excused, and a decline
 explains itself in `error` (a post held until an office opens) can still be excused. A
 raised exception and a framework error string are never excused.
 
+`held_predicates` is for work that was DEFERRED rather than done: a post held until an
+office opens, `{"sent": false, "reason": "quiet_hours", "error": "held until 8 AM"}`. Such
+a call is `Outcome.HELD`: it raises neither `TOOL_ERROR` nor `TOOL_REFUSAL`, and, unlike an
+exemption, it is not counted as having succeeded, so a reply that says the post went out is
+still an `UNVERIFIED_CLAIM`. Use an exemption for work that really happened (a hand-off to a
+relay) and `held_predicates` for work that is waiting. Empty by default.
+
 ### What the other detectors depend on
 
 Same class of problem, and the reason `coverage()` exists: a detector whose input is
