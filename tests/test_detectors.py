@@ -560,6 +560,67 @@ def test_an_exemption_outranks_the_results_own_error_field():
     )
 
 
+def _held_quiet_hours(result):
+    return (
+        isinstance(result, dict)
+        and result.get("sent") is False
+        and result.get("reason") == "quiet_hours"
+    )
+
+
+HELD_POST = {
+    "sent": False,
+    "reason": "quiet_hours",
+    "error": "held until 8 AM",
+}
+
+
+def test_a_held_call_is_neither_a_failure_nor_a_success():
+    cfg = Config(held_predicates=(_held_quiet_hours,))
+    assert tool_outcome(tool("post", result=HELD_POST), cfg) is Outcome.HELD
+    # Nothing is held unless a predicate says so: the default config is unchanged.
+    assert tool_outcome(tool("post", result=HELD_POST), Config()) is Outcome.ERRORED
+    # The predicate names the SHAPE, so a different decline from the same tool still scores.
+    other = tool("post", result={"sent": False, "error": "Group thread not found"})
+    assert tool_outcome(other, cfg) is Outcome.ERRORED
+    # A raise and a framework error string stay above it.
+    assert (
+        tool_outcome(tool("post", result=HELD_POST, is_error=True), cfg)
+        is Outcome.ERRORED
+    )
+    assert (
+        tool_outcome(
+            tool("post", result="Error executing tool post"),
+            Config(held_predicates=(lambda r: True,)),
+        )
+        is Outcome.ERRORED
+    )
+
+
+def test_a_held_call_raises_neither_error_detector():
+    cfg = Config(held_predicates=(_held_quiet_hours,))
+    held = turn(tool("post", result=HELD_POST), gen("The post is held until 8 AM."))
+    assert codes(run(held, cfg)) == set()
+
+
+def test_a_held_call_does_not_back_a_claim():
+    """The reason HELD exists and an exemption is not enough: an exemption makes a call OK,
+    and an OK call satisfies a claim rule, so 'I sent it' would pass after a held post."""
+    held_cfg = Config(held_predicates=(_held_quiet_hours,))
+    exempt_cfg = Config(refusal_exemptions=(_held_quiet_hours,))
+    said = turn(tool("send_post", result=HELD_POST), gen("I've sent them a message."))
+    assert "UNVERIFIED_CLAIM" in codes(run(said, held_cfg))
+    # The same shape declared as an exemption backs the claim, which is the gap.
+    assert "UNVERIFIED_CLAIM" not in codes(run(said, exempt_cfg))
+    # A post that went out still backs it, and an honest report claims nothing.
+    went = turn(
+        tool("send_post", result={"sent": True}), gen("I've sent them a message.")
+    )
+    assert "UNVERIFIED_CLAIM" not in codes(run(went, held_cfg))
+    honest = turn(tool("send_post", result=HELD_POST), gen("It is held until 8 AM."))
+    assert "UNVERIFIED_CLAIM" not in codes(run(honest, held_cfg))
+
+
 def test_the_refusal_plus_claim_pairing_the_docs_point_at():
     """docs/configuring.md tells a reader that a TOOL_REFUSAL on the same turn as an
     UNVERIFIED_CLAIM is the combination worth acting on: the tool said no and the reply

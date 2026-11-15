@@ -191,3 +191,8 @@ class Outcome(StrEnum):
     OK = "ok"
     REFUSED = "refused"
     ERRORED = "errored"
+    # The tool declined BY DESIGN and asked the caller to wait (a post held until an office
+    # opens). Not a failure, and not a success either: it is in neither `TOOL_ERROR` nor
+    # `TOOL_REFUSAL`, and it does not satisfy a claim rule, so "I sent it" after a held post
+    # is still an unverified claim. Declared with `Config.held_predicates`.
+    HELD = "held"

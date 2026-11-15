@@ -189,6 +189,15 @@ class Config:
     error_text_prefixes: tuple[str, ...] = ("Error executing tool",)
     # Predicates that rescue a result the flag scan would otherwise call a refusal.
     refusal_exemptions: tuple[Callable[[Any], bool], ...] = (_queued_not_sent,)
+    # Shapes where a tool DECLINED ON PURPOSE and told the caller to wait: `{"sent": false,
+    # "reason": "quiet_hours", "error": "held until 8 AM"}`. Neither a failure nor a
+    # success, so the call (`Outcome.HELD`) raises neither `TOOL_ERROR` nor `TOOL_REFUSAL`
+    # and is NOT counted as having done the thing, which is the difference from an
+    # exemption. An exemption declares a shape healthy, and a healthy call satisfies a claim
+    # rule; for a send that was held, that would let "I sent it" pass. Use an exemption for
+    # work that really happened (a hand-off to a relay) and this for work that was deferred.
+    # Empty by default: postflight cannot guess which of your tools hold a request.
+    held_predicates: tuple[Callable[[Any], bool], ...] = ()
     # The other direction: extra ways a result can BE a refusal, for tools that do not
     # use boolean flags. Empty by default on purpose — a status-style convention cannot
     # be guessed safely, because `{"status": "failed"}` from a `get_job_status` tool
