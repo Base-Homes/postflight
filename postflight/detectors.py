@@ -42,12 +42,18 @@ def tool_outcome(call: ToolCall, cfg: Config) -> Outcome:
     result = call.result
     if isinstance(result, str) and result.startswith(cfg.error_text_prefixes):
         return Outcome.ERRORED
-    if isinstance(result, dict) and result.get("error"):
-        return Outcome.ERRORED
-    # Exemptions run first and win outright: a shape declared healthy stays healthy
-    # even if a later rule would flag it.
+    # Exemptions win outright over everything below: a shape declared healthy stays
+    # healthy even if a later rule would flag it. That includes the result's own `error`
+    # field, which is why they sit ABOVE that check. A tool that declines by policy often
+    # explains itself in `error` (a post held until an office opens answers
+    # `{"sent": false, "reason": "quiet_hours", "error": "held until 8 AM"}`), and
+    # checking `error` first made the exemption unreachable for exactly the shapes that
+    # carry one. A raised exception and a framework error string stay above: no result
+    # shape excuses a tool that crashed.
     if any(exempt(result) for exempt in cfg.refusal_exemptions):
         return Outcome.OK
+    if isinstance(result, dict) and result.get("error"):
+        return Outcome.ERRORED
     if any(is_refusal(result) for is_refusal in cfg.refusal_predicates):
         return Outcome.REFUSED
     if isinstance(result, dict) and any(
