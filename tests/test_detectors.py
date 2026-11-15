@@ -224,6 +224,72 @@ def test_distinct_arguments_returning_the_same_nothing_still_repeats():
     }
 
 
+def test_failures_that_echo_their_argument_still_repeat():
+    """The thrash that got away: a lookup fails with the name it was given in the message,
+    so three attempts return three different strings and the results arm saw no repeat."""
+    names = ("Ada Lovelace", "Ada", "ada@example.com")
+    found = run(
+        turn(
+            *[
+                tool(
+                    "assign_member",
+                    arguments={"action_id": "a-1", "name": n},
+                    result={
+                        "ok": False,
+                        "error": f"No member named '{n}' in your directory.",
+                    },
+                )
+                for n in names
+            ],
+            gen("could not assign"),
+        )
+    )
+    repeated = next(f for f in found if f.code == "REPEATED_TOOL")
+    assert repeated.detail["basis"] == {"assign_member": ["results"]}
+
+
+def test_failures_with_different_reasons_are_not_one_repeat():
+    """Masking the argument must not make unrelated failures look alike."""
+    reasons = ("timeout", "forbidden", "rate limited")
+    found = run(
+        turn(
+            *[
+                tool(
+                    "get_record",
+                    arguments={"record_id": f"id-{i}"},
+                    result={"error": reason},
+                )
+                for i, reason in enumerate(reasons)
+            ],
+            gen("three different problems"),
+        )
+    )
+    assert "REPEATED_TOOL" not in codes(found)
+
+
+def test_a_short_argument_is_not_masked_out_of_the_text_around_it():
+    """An argument like `to` or `id` appears in fixed wording; masking it would make
+    different messages identical. Values under three characters are left alone."""
+    found = run(
+        turn(
+            tool(
+                "send",
+                arguments={"mode": "to"},
+                result={"error": "cannot send to room"},
+            ),
+            tool(
+                "send", arguments={"mode": "to"}, result={"error": "too many requests"}
+            ),
+            tool("send", arguments={"mode": "to"}, result={"error": "unreachable"}),
+            gen("failed"),
+        )
+    )
+    assert "REPEATED_TOOL" in codes(found)  # identical ARGUMENTS still repeat
+    assert next(f for f in found if f.code == "REPEATED_TOOL").detail["basis"] == {
+        "send": ["arguments"]
+    }
+
+
 def test_distinct_arguments_each_succeeding_identically_is_not_a_repeat():
     """A bulk write returns the same `{"ok": true}` per row. Keying repeats on the
     RESULT alone would eat exactly the fan-out this rule exists to stay clear of."""
