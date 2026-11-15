@@ -101,8 +101,10 @@ clothes, and it belongs in `TOOL_ERROR` where your existing alerting can see it.
 
 `refusal_exemptions` is the other direction: shapes that look like refusals and are
 not. The shipped one is `{"sent": false, "queued": true}`: a send handed off to a relay.
-Exemptions outrank `refusal_predicates`, so widening your detection cannot silently
-re-flag a path you already excused.
+Exemptions outrank `refusal_predicates` and the result's own `error` field, so widening
+your detection cannot silently re-flag a path you already excused, and a decline that
+explains itself in `error` (a post held until an office opens) can still be excused. A
+raised exception and a framework error string are never excused.
 
 ### What the other detectors depend on
 

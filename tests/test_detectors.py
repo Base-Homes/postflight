@@ -365,6 +365,23 @@ def test_an_exemption_outranks_a_refusal_predicate():
     assert tool_outcome(queued, cfg) is Outcome.OK
 
 
+def test_an_exemption_outranks_the_results_own_error_field():
+    """A decline that explains itself in `error` is still a decline by design. Checking
+    `error` before the exemptions made them unreachable for the shapes that carry one."""
+    held = lambda r: isinstance(r, dict) and r.get("reason") == "quiet_hours"  # noqa: E731
+    cfg = Config(refusal_exemptions=(held,))
+    post = tool("post", result={"sent": False, "reason": "quiet_hours", "error": "held until 8 AM"})
+    assert tool_outcome(post, cfg) is Outcome.OK
+    # The exemption excuses the SHAPE it names, not every result with an `error`.
+    other = tool("post", result={"sent": False, "error": "Group thread not found"})
+    assert tool_outcome(other, cfg) is Outcome.ERRORED
+    # A raise and a framework error string are above any exemption.
+    assert tool_outcome(tool("post", result={"reason": "quiet_hours"}, is_error=True), cfg) \
+        is Outcome.ERRORED
+    assert tool_outcome(tool("post", result="Error executing tool post"),
+                        Config(refusal_exemptions=(lambda r: True,))) is Outcome.ERRORED
+
+
 def test_the_refusal_plus_claim_pairing_the_docs_point_at():
     """docs/configuring.md tells a reader that a TOOL_REFUSAL on the same turn as an
     UNVERIFIED_CLAIM is the combination worth acting on: the tool said no and the reply
